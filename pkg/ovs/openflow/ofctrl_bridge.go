@@ -82,10 +82,13 @@ func (t *ofTable) BuildFlow(priority uint16) FlowBuilder {
 }
 
 // DumpFlows dumps all existing Openflow entries from OFSwitch using cookie ID and table ID as filters.
-func (t *ofTable) DumpFlows(cookieID, cookieMask uint64) map[uint64]*FlowStates {
-	ofStats := t.Table.Switch.DumpFlowStats(cookieID, cookieMask, nil, &t.TableId)
+func (t *ofTable) DumpFlows(cookieID, cookieMask uint64) (map[uint64]*FlowStates, error) {
+	ofStats, err := t.Table.Switch.DumpFlowStats(cookieID, cookieMask, nil, &t.TableId)
+	if err != nil {
+		return nil, err
+	}
 	if ofStats == nil {
-		return nil
+		return nil, nil
 	}
 	flowStats := make(map[uint64]*FlowStates)
 	for _, stat := range ofStats {
@@ -97,7 +100,7 @@ func (t *ofTable) DumpFlows(cookieID, cookieMask uint64) map[uint64]*FlowStates 
 		}
 		flowStats[cookie] = s
 	}
-	return flowStats
+	return flowStats, nil
 }
 
 func newOFTable(id, next TableIDType, missAction MissActionType) *ofTable {
@@ -129,6 +132,12 @@ type OFBridge struct {
 	connCh chan struct{}
 	// connected is an internal channel to notify if connected to the OFSwitch or not. It is used only in Connect method.
 	connected chan bool
+	// pktConsumers is a map from PacketIn reason to the channel that is used to publish the PacketIn message.
+	pktConsumers map[uint8]chan *ofctrl.PacketIn
+	// tlvMapStatus is the status of tlv-map table. It is used to allocate new tlv-map which is used in the Geneve header.
+	tlvMapStatus *ofctrl.TLVTableStatus
+	// channel to notify agent tlv-map table is retrieved.
+	tlvCh chan struct{}
 }
 
 func (b *OFBridge) CreateGroup(id GroupIDType) Group {
@@ -188,6 +197,17 @@ func (b *OFBridge) DumpTableStatus() []TableStatus {
 // PacketRcvd is a callback when a packetIn is received on ofctrl.OFSwitch.
 func (b *OFBridge) PacketRcvd(sw *ofctrl.OFSwitch, packet *ofctrl.PacketIn) {
 	klog.Infof("Received packet: %+v", packet)
+	reason := packet.Reason
+	ch, found := b.pktConsumers[reason]
+	if found {
+		ch <- packet
+	}
+}
+
+// TLVMapReplyRcvd is a callback when a TLVMapReply message is received on ofctrl.OFSwitch.
+func (b *OFBridge) TLVMapReplyRcvd(ofSwitch *ofctrl.OFSwitch, status *ofctrl.TLVTableStatus) {
+	b.tlvMapStatus = status
+	b.tlvCh <- struct{}{}
 }
 
 // SwitchConnected is a callback when the remote OFSwitch is connected.
@@ -215,7 +235,7 @@ func (b *OFBridge) SwitchDisconnected(sw *ofctrl.OFSwitch) {
 	klog.Infof("OFSwitch is disconnected: %v", sw.DPID())
 }
 
-// Initialize creates ofctrl.Table for each table in the tableCache.
+// initialize creates ofctrl.Table for each table in the tableCache.
 func (b *OFBridge) initialize() {
 	b.Lock()
 	defer b.Unlock()
@@ -233,6 +253,7 @@ func (b *OFBridge) initialize() {
 		// reset flow counts, which is needed for reconnections
 		table.ResetStatus()
 	}
+	b.queryTlvMap()
 }
 
 // Connect initiates the connection to the OFSwitch, and initializes ofTables after connected.
@@ -270,10 +291,13 @@ func (b *OFBridge) Disconnect() error {
 
 // DumpFlows queries the Openflow entries from OFSwitch, the filter of the query is Openflow cookieID. The result is
 // a map from flow cookieID to FlowStates.
-func (b *OFBridge) DumpFlows(cookieID, cookieMask uint64) map[uint64]*FlowStates {
-	ofStats := b.ofSwitch.DumpFlowStats(cookieID, cookieMask, nil, nil)
+func (b *OFBridge) DumpFlows(cookieID, cookieMask uint64) (map[uint64]*FlowStates, error) {
+	ofStats, err := b.ofSwitch.DumpFlowStats(cookieID, cookieMask, nil, nil)
+	if err != nil {
+		return nil, err
+	}
 	if ofStats == nil {
-		return nil
+		return nil, nil
 	}
 	flowStats := make(map[uint64]*FlowStates)
 	for _, stat := range ofStats {
@@ -285,7 +309,7 @@ func (b *OFBridge) DumpFlows(cookieID, cookieMask uint64) map[uint64]*FlowStates
 		}
 		flowStats[cookie] = s
 	}
-	return flowStats
+	return flowStats, nil
 }
 
 // DeleteFlowsByCookie removes Openflow entries from OFSwitch. The removed Openflow entries use the specific CookieID.
@@ -502,6 +526,58 @@ func (b *OFBridge) AddOFEntriesInBundle(addEntries []OFEntry, modEntries []OFEnt
 	return nil
 }
 
+// SubscribePacketIn registers a consumer to listen PacketIn message with a provided reason. When Bridge
+// received a packetIn message with the specific reason, it sends the message to the consumer using the channel.
+func (b *OFBridge) SubscribePacketIn(reason uint8, ch chan *ofctrl.PacketIn) error {
+	_, exist := b.pktConsumers[reason]
+	if exist {
+		return fmt.Errorf("packetIn reason %d already exists", reason)
+	}
+	b.pktConsumers[reason] = ch
+	return nil
+}
+
+// AddTLVMap adds a TLV mapping with OVS field tun_metadataX. The value loaded in tun_metadataX is transported
+// by Geneve header with the specified <optClass, optType, optLength>. The value of OptLength is multiple of 4.
+// The value loaded into tun_metadataX is shorter the length.
+func (b *OFBridge) AddTLVMap(optClass uint16, optType uint8, optLength uint8, index uint16) error {
+	tlvMap := b.tlvMapStatus.GetTLVMap(index)
+	if tlvMap != nil {
+		if tlvMap.OptClass != optClass {
+			return fmt.Errorf("another tlv-map is using the same tun_metadata with Class %d", tlvMap.OptClass)
+		}
+		if tlvMap.OptType != optType {
+			return fmt.Errorf("another tlv-map is using the same tun_metadata with Type %d", tlvMap.OptType)
+		}
+		if tlvMap.OptLength != optLength {
+			return fmt.Errorf("another tlv-map is using the same tun_metadata with Length: %d", tlvMap.OptLength)
+		}
+		return nil
+	}
+	tlvMap = &openflow13.TLVTableMap{
+		OptClass:  optClass,
+		OptType:   optType,
+		OptLength: optLength,
+		Index:     index,
+	}
+	if err := b.ofSwitch.AddTunnelTLVMap([]*openflow13.TLVTableMap{tlvMap}); err != nil {
+		return err
+	}
+	b.tlvMapStatus.AddTLVMap(tlvMap)
+	return nil
+}
+
+// SendPacketOut sends a packetOut message to the OVS Bridge.
+func (b *OFBridge) SendPacketOut(packetOut *ofctrl.PacketOut) error {
+	return b.ofSwitch.Send(packetOut.GetMessage())
+}
+
+func (b *OFBridge) BuildPacketOut() PacketOutBuilder {
+	return &ofPacketOutBuilder{
+		pktOut: new(ofctrl.PacketOut),
+	}
+}
+
 // MaxRetry is a callback from OFController. It sets the max retry count that OFController attempts to connect to OFSwitch.
 func (b *OFBridge) MaxRetry() int {
 	return b.maxRetrySec
@@ -513,11 +589,19 @@ func (b *OFBridge) RetryInterval() time.Duration {
 	return b.retryInterval
 }
 
+func (b *OFBridge) queryTlvMap() {
+	// Query tlv-map table status.
+	b.ofSwitch.RequestTlvMap()
+	b.tlvCh = make(chan struct{})
+	<-b.tlvCh
+}
+
 func NewOFBridge(br string) Bridge {
 	s := &OFBridge{
 		bridgeName:    br,
 		tableCache:    make(map[TableIDType]*ofTable),
 		retryInterval: 1 * time.Second,
+		pktConsumers:  make(map[uint8]chan *ofctrl.PacketIn),
 	}
 	s.controller = ofctrl.NewController(s)
 	return s
