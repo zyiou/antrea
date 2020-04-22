@@ -123,6 +123,34 @@ type Client interface {
 
 	// SubscribePacketIn subscribes packet-in channel in Bridge.
 	SubscribePacketIn(reason uint8, ch chan *ofctrl.PacketIn) error
+
+	// SendTraceflowPacket injects packet to specified OVS port for Openflow
+	SendTraceflowPacket(
+		crossNodeTag uint8,
+		srcMAC string,
+		dstMAC string,
+		srcIP string,
+		dstIP string,
+		IPProtocol uint8,
+		ttl uint8,
+		IPFlags uint16,
+		TCPsPort uint16,
+		TCPdPort uint16,
+		TCPFlags uint8,
+		UDPsPort uint16,
+		UDPdPort uint16,
+		ICMPType uint8,
+		ICMPCode uint8,
+		ICMPID uint16,
+		ICMPSequence uint16,
+		inPort uint32,
+		outPort int32) error
+
+	// InstallTraceflowFlows installs flows for specific traceflow request
+	InstallTraceflowFlows(crossNodeTag uint8) error
+
+	// Initial tun_metadata0 in TLV map for Traceflow
+	InitialTLVMap() error
 }
 
 // GetFlowTableStatus returns an array of flow table status.
@@ -434,4 +462,90 @@ func (c *client) setupPolicyOnlyFlows() error {
 
 func (c *client) SubscribePacketIn(reason uint8, ch chan *ofctrl.PacketIn) error {
 	return c.bridge.SubscribePacketIn(reason, ch)
+}
+
+func (c *client) SendTraceflowPacket(
+	crossNodeTag uint8,
+	srcMAC string,
+	dstMAC string,
+	srcIP string,
+	dstIP string,
+	IPProtocol uint8,
+	ttl uint8,
+	IPFlags uint16,
+	TCPsPort uint16,
+	TCPdPort uint16,
+	TCPFlags uint8,
+	UDPsPort uint16,
+	UDPdPort uint16,
+	ICMPType uint8,
+	ICMPCode uint8,
+	ICMPID uint16,
+	ICMPSequence uint16,
+	inPort uint32,
+	outPort int32) error {
+
+	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
+	regRange := binding.Range{28, 31}
+
+	packetOutBuilder := c.bridge.BuildPacketOut()
+	parsedSrcMAC, _ := net.ParseMAC(srcMAC)
+	parsedDstMAC, _ := net.ParseMAC(dstMAC)
+	if dstMAC == "" {
+		parsedDstMAC = globalVirtualMAC
+	}
+
+	packetOutBuilder = packetOutBuilder.SetSrcMAC(parsedSrcMAC)
+	packetOutBuilder = packetOutBuilder.SetDstMAC(parsedDstMAC)
+	packetOutBuilder = packetOutBuilder.SetSrcIP(net.ParseIP(srcIP))
+	packetOutBuilder = packetOutBuilder.SetDstIP(net.ParseIP(dstIP))
+
+	packetOutBuilder = packetOutBuilder.SetTTL(ttl)
+	packetOutBuilder = packetOutBuilder.SetIPFlags(IPFlags)
+
+	switch IPProtocol {
+	case 1:
+		packetOutBuilder = packetOutBuilder.SetIPProtocol(binding.ProtocolICMP)
+		packetOutBuilder = packetOutBuilder.SetICMPType(ICMPType)
+		packetOutBuilder = packetOutBuilder.SetICMPCode(ICMPCode)
+		packetOutBuilder = packetOutBuilder.SetICMPID(ICMPID)
+		packetOutBuilder = packetOutBuilder.SetICMPSequence(ICMPSequence)
+	case 6:
+		packetOutBuilder = packetOutBuilder.SetIPProtocol(binding.ProtocolTCP)
+		packetOutBuilder = packetOutBuilder.SetTCPsPort(TCPsPort)
+		packetOutBuilder = packetOutBuilder.SetTCPdPort(TCPdPort)
+		packetOutBuilder = packetOutBuilder.SetTCPFlags(TCPFlags)
+	case 17:
+		packetOutBuilder = packetOutBuilder.SetIPProtocol(binding.ProtocolUDP)
+		packetOutBuilder = packetOutBuilder.SetUDPsPort(UDPsPort)
+		packetOutBuilder = packetOutBuilder.SetUDPdPort(UDPdPort)
+	}
+
+	packetOutBuilder = packetOutBuilder.SetInport(inPort)
+	if outPort != -1 {
+		packetOutBuilder = packetOutBuilder.SetOutport(uint32(outPort))
+	}
+	packetOutBuilder = packetOutBuilder.AddLoadAction(regName, uint64(crossNodeTag), regRange)
+
+	packetOutObj := packetOutBuilder.Done()
+	return c.bridge.SendPacketOut(packetOutObj)
+}
+
+func (c *client) InstallTraceflowFlows(crossNodeTag uint8) error {
+	flows := []binding.Flow{
+		c.traceflowL2ForwardOutputFlow(crossNodeTag, cookie.Default),
+	}
+	for _, ctx := range c.globalConjMatchFlowCache {
+		flows = append(
+			flows,
+			ctx.dropFlow.CopyToBuilder().
+				MatchRegRange(int(marksReg), uint32(crossNodeTag), ofTraceflowMarkRange).
+				Action().SendToController(1).
+				Done())
+	}
+	return c.AddAll(flows)
+}
+
+func (c *client) InitialTLVMap() error {
+	return c.bridge.AddTLVMap(0x0104, 0x80, 4 , 0)
 }

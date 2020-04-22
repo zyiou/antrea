@@ -15,6 +15,7 @@
 package openflow
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -60,6 +61,8 @@ var (
 	// ofPortMarkRange takes the 16th bit of register marksReg to indicate if the ofPort number of an interface
 	// is found or not. Its value is 0x1 if yes.
 	ofPortMarkRange = binding.Range{16, 16}
+	// ofTraceflowMarkRange stores crossNodeTag at range 28-31 in marksReg.
+	ofTraceflowMarkRange = binding.Range{28, 31}
 	// ofPortRegRange takes a 32-bit range of register portCacheReg to cache the ofPort number of the interface.
 	ofPortRegRange = binding.Range{0, 31}
 )
@@ -84,6 +87,9 @@ const (
 	marksReg     regType = 0
 	portCacheReg regType = 1
 	swapReg      regType = 2
+	ingressReg   regType = 4
+	egressReg    regType = 5
+	tunnelDstReg regType = 8
 
 	ctZone = 0xfff0
 
@@ -189,8 +195,11 @@ func (c *client) defaultFlows() (flows []binding.Flow) {
 
 // tunnelClassifierFlow generates the flow to mark traffic comes from the tunnelOFPort.
 func (c *client) tunnelClassifierFlow(tunnelOFPort uint32, category cookie.Category) binding.Flow {
+	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
+	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
 	return c.pipeline[classifierTable].BuildFlow(priorityNormal).
 		MatchInPort(tunnelOFPort).
+		Action().MoveRange(tunMetadataName, regName, ofPortMarkRange, ofPortMarkRange). // Traceflow
 		Action().LoadRegRange(int(marksReg), markTrafficFromTunnel, binding.Range{0, 15}).
 		Action().ResubmitToTable(conntrackTable).
 		Cookie(c.cookieAllocator.Request(category).Raw()).
@@ -309,6 +318,22 @@ func (c *client) l2ForwardOutputFlow(category cookie.Category) binding.Flow {
 		Done()
 }
 
+// l2ForwardOutputFlow for traceflow
+func (c *client) traceflowL2ForwardOutputFlow(crossNodeTag uint8, category cookie.Category) binding.Flow {
+	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
+	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
+	return c.pipeline[l2ForwardingOutTable].BuildFlow(priorityNormal + 2).
+		MatchRegRange(int(marksReg), uint32(crossNodeTag), ofTraceflowMarkRange).
+		SetHardTimeout(300).
+		MatchProtocol(binding.ProtocolIP).
+		MatchRegRange(int(marksReg), portFoundMark, ofPortMarkRange).
+		Action().MoveRange(regName, tunMetadataName, ofPortMarkRange, ofPortMarkRange).
+		Action().SendToController(1).
+		Action().OutputRegRange(int(portCacheReg), ofPortRegRange).
+		Cookie(c.cookieAllocator.Request(category).Raw()).
+		Done()
+}
+
 // l2ForwardOutputReentInPortFlow generates the flow that forward re-entrance peer Node traffic via gw0.
 // This flow supersedes default output flow because ovs by default auto-skips packets with output = input port.
 func (c *client) l2ForwardOutputReentInPortFlow(gwPort uint32, category cookie.Category) binding.Flow {
@@ -404,6 +429,7 @@ func (c *client) l3FwdFlowToRemote(
 		Action().LoadRegRange(int(marksReg), portFoundMark, ofPortMarkRange).
 		// Flow based tunnel. Set tunnel destination.
 		Action().SetTunnelDst(tunnelPeer).
+		Action().LoadRegRange(int(tunnelDstReg), binary.BigEndian.Uint32(tunnelPeer), binding.Range{0, 31}). // Traceflow
 		// Bypass l2ForwardingCalcTable and tables for ingress rules (which won't
 		// apply to packets to remote Nodes).
 		Action().ResubmitToTable(conntrackCommitTable).
@@ -533,8 +559,13 @@ func (c *client) arpNormalFlow(category cookie.Category) binding.Flow {
 // conjunctionActionFlow generates the flow to resubmit to a specific table if policyRuleConjunction ID is matched. Priority of
 // conjunctionActionFlow is priorityLow.
 func (c *client) conjunctionActionFlow(conjunctionID uint32, tableID binding.TableIDType, nextTable binding.TableIDType) binding.Flow {
+	conjReg := ingressReg
+	if tableID == egressRuleTable {
+		conjReg = egressReg
+	}
 	return c.pipeline[tableID].BuildFlow(priorityLow).MatchProtocol(binding.ProtocolIP).
 		MatchConjID(conjunctionID).
+		Action().LoadRegRange(int(conjReg), conjunctionID, binding.Range{0, 31}). // Traceflow
 		Action().ResubmitToTable(nextTable).
 		Cookie(c.cookieAllocator.Request(cookie.Policy).Raw()).
 		Done()
@@ -598,8 +629,13 @@ func (c *client) addFlowMatch(fb binding.FlowBuilder, matchType int, matchValue 
 
 // conjunctionExceptionFlow generates the flow to resubmit to a specific table if both policyRuleConjunction ID and except address are matched.
 func (c *client) conjunctionExceptionFlow(conjunctionID uint32, tableID binding.TableIDType, nextTable binding.TableIDType, matchKey int, matchValue interface{}) binding.Flow {
+	conjReg := ingressReg
+	if tableID == egressRuleTable {
+		conjReg = egressReg
+	}
 	fb := c.pipeline[tableID].BuildFlow(priorityNormal).MatchConjID(conjunctionID)
 	return c.addFlowMatch(fb, matchKey, matchValue).
+		Action().LoadRegRange(int(conjReg), conjunctionID, binding.Range{0, 31}). // Traceflow
 		Action().ResubmitToTable(nextTable).
 		Cookie(c.cookieAllocator.Request(cookie.Policy).Raw()).
 		Done()

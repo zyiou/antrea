@@ -58,6 +58,7 @@ const (
 	NxmFieldCtMark  = "NXM_NX_CT_MARK"
 	NxmFieldARPOp   = "NXM_OF_ARP_OP"
 	NxmFieldReg     = "NXM_NX_REG"
+	NxmFieldTunMetadata = "NXM_NX_TUN_METADATA"
 )
 
 const (

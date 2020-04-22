@@ -27,7 +27,7 @@ import (
 )
 
 func (c *Controller) ReceivePacketIn(stopCh <-chan struct{}) {
-	var ch chan ofctrl.PacketIn
+	ch := make(chan *ofctrl.PacketIn)
 	c.ofClient.SubscribePacketIn(1, ch)
 
 	wait.PollUntil(time.Second, func() (done bool, err error) {
@@ -37,7 +37,7 @@ func (c *Controller) ReceivePacketIn(stopCh <-chan struct{}) {
 	}, stopCh)
 }
 
-func parsePacketIn(pktIn ofctrl.PacketIn, q Querier) (*v1.Traceflow, error) {
+func parsePacketIn(pktIn *ofctrl.PacketIn, q Querier) (*v1.Traceflow, error) {
 	matchers := pktIn.GetMatches()
 	var match *ofctrl.MatchField
 
@@ -70,7 +70,7 @@ func parsePacketIn(pktIn ofctrl.PacketIn, q Querier) (*v1.Traceflow, error) {
 	// get drop table
 	if match = getMatchField(matchers, 3); match != nil {
 		rngDrop := openflow13.NewNXRange(0, 7)
-		drop, err := getInfoInReg(matchers, match, rngDrop)
+		_, err := getInfoInReg(matchers, match, rngDrop)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func parsePacketIn(pktIn ofctrl.PacketIn, q Querier) (*v1.Traceflow, error) {
 	// get output table
 	if match = getMatchField(matchers, 3); match != nil {
 		rngOut := openflow13.NewNXRange(8, 15)
-		output, err := getInfoInReg(matchers, match, rngOut)
+		_, err := getInfoInReg(matchers, match, rngOut)
 		if err != nil {
 			return nil, err
 		}

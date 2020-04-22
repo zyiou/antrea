@@ -29,6 +29,7 @@ import (
 	"github.com/vmware-tanzu/antrea/pkg/agent/config"
 	"github.com/vmware-tanzu/antrea/pkg/agent/controller/networkpolicy"
 	"github.com/vmware-tanzu/antrea/pkg/agent/controller/noderoute"
+	"github.com/vmware-tanzu/antrea/pkg/agent/controller/traceflow"
 	"github.com/vmware-tanzu/antrea/pkg/agent/interfacestore"
 	"github.com/vmware-tanzu/antrea/pkg/agent/openflow"
 	"github.com/vmware-tanzu/antrea/pkg/agent/querier"
@@ -112,6 +113,15 @@ func run(o *Options) error {
 		networkConfig,
 		nodeConfig)
 
+	traceflowController := traceflow.NewTraceflowController(
+		crdClient,
+		informerFactory,
+		ofClient,
+		ovsBridgeClient,
+		ifaceStore,
+		networkConfig,
+		nodeConfig)
+
 	// podUpdates is a channel for receiving Pod updates from CNIServer and
 	// notifying NetworkPolicyController to reconcile rules related to the
 	// updated Pods.
@@ -151,6 +161,8 @@ func run(o *Options) error {
 	go nodeRouteController.Run(stopCh)
 
 	go networkPolicyController.Run(stopCh)
+
+	go traceflowController.Run(stopCh)
 
 	agentQuerier := querier.NewAgentQuerier(
 		o.config.OVSBridge,
