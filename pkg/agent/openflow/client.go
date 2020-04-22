@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/klog"
 
 	"github.com/vmware-tanzu/antrea/pkg/agent/config"
@@ -119,6 +120,9 @@ type Client interface {
 
 	// GetPodFlowKeys returns the keys (match strings) of the cached flows for a Pod.
 	GetPodFlowKeys(interfaceName string) []string
+
+	// SubscribePacketIn subscribes packet-in channel in Bridge.
+	SubscribePacketIn(reason uint8, ch chan *ofctrl.PacketIn) error
 }
 
 // GetFlowTableStatus returns an array of flow table status.
@@ -426,4 +430,8 @@ func (c *client) setupPolicyOnlyFlows() error {
 		return fmt.Errorf("failed to setup policy-only flows: %w", err)
 	}
 	return nil
+}
+
+func (c *client) SubscribePacketIn(reason uint8, ch chan *ofctrl.PacketIn) error {
+	return c.bridge.SubscribePacketIn(reason, ch)
 }

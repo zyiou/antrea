@@ -31,6 +31,7 @@ import (
 	"github.com/vmware-tanzu/antrea/pkg/controller/networkpolicy"
 	"github.com/vmware-tanzu/antrea/pkg/controller/networkpolicy/store"
 	"github.com/vmware-tanzu/antrea/pkg/controller/querier"
+	"github.com/vmware-tanzu/antrea/pkg/controller/traceflow"
 	"github.com/vmware-tanzu/antrea/pkg/k8s"
 	"github.com/vmware-tanzu/antrea/pkg/monitor"
 	"github.com/vmware-tanzu/antrea/pkg/signals"
@@ -73,6 +74,8 @@ func run(o *Options) error {
 
 	controllerMonitor := monitor.NewControllerMonitor(crdClient, nodeInformer, controllerQuerier)
 
+	traceflowController := traceflow.NewTraceflowController(crdClient)
+
 	apiServerConfig, err := createAPIServerConfig(o.config.ClientConnection.Kubeconfig,
 		o.config.APIPort,
 		addressGroupStore,
@@ -97,6 +100,8 @@ func run(o *Options) error {
 	go controllerMonitor.Run(stopCh)
 
 	go networkPolicyController.Run(stopCh)
+
+	go traceflowController.Run(stopCh)
 
 	go apiServer.GenericAPIServer.PrepareRun().Run(stopCh)
 
