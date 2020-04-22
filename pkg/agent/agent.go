@@ -248,6 +248,11 @@ func (i *Initializer) initOpenFlowPipeline() error {
 
 	// When IPSec encyption is enabled, no flow is needed for the default tunnel interface.
 	if i.networkConfig.TrafficEncapMode.SupportsEncap() {
+		// Traceflow TLV map for
+		if err := i.ofClient.InitialTLVMap(); err != nil {
+			klog.Errorf("Error during TLV map initialization: %v", err)
+			return err
+		}
 		// Setup flow entries for the default tunnel port interface.
 		if err := i.ofClient.InstallDefaultTunnelFlows(config.DefaultTunOFPort); err != nil {
 			klog.Errorf("Failed to setup openflow entries for tunnel interface: %v", err)

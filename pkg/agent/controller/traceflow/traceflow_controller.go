@@ -113,10 +113,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	klog.Infof("Starting %s", controllerName)
 	defer klog.Infof("Shutting down %s", controllerName)
 
-	if err := c.ofClient.InitialTLVMap(); err != nil {
-		klog.Errorf("Error during %s TLV map initialization", controllerName)
-	}
-
 	go c.ReceivePacketIn(stopCh)
 	for i := 0; i < defaultWorkers; i++ {
 		go wait.Until(c.worker, time.Second, stopCh)
