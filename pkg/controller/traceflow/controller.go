@@ -52,34 +52,35 @@ func (controller *Controller) Run(stopCh <-chan struct{}) {
 	// Load all cross node tags from CRD into controller's cache.
 	list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
 	if err != nil {
-		klog.V(2).Info("Failed to list all Antrea Traceflows")
+		klog.Errorf("Failed to list all Antrea Traceflows")
 	}
 	for _, tf := range list.Items {
 		if tf.Status.Phase == traceflowv1.RUNNING {
 			if err := controller.occupyTag(tf.Status.CrossNodeTag); err != nil {
-				klog.V(2).Info("Load Traceflow's tag failed %v+: %v", tf, err)
+				klog.Errorf("Load Traceflow's tag failed %v+: %v", tf, err)
 			}
 			controller.running[tf.Status.CrossNodeTag] = &tf
 		}
 	}
 
-	klog.V(2).Info("Starting Antrea Traceflow Controller")
+	klog.Info("Starting Antrea Traceflow Controller")
 	wait.PollUntil(time.Second, func() (done bool, err error) {
 		list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
 		if err != nil {
-			klog.V(2).Info("Fail to list all Antrea Traceflows")
+			klog.Errorf("Fail to list all Antrea Traceflows")
 			return false, err
 		}
 		for _, tf := range list.Items {
 			if tf.Status.Phase == traceflowv1.INITIAL {
-				klog.Info("enter phase initial")
+				klog.Info("Enter initialize part")
 				if _, err = controller.updateTraceflowCRD(&tf); err != nil {
-					klog.Info("Update traceflow CRD err: %v", err)
+					klog.Errorf("Update traceflow CRD err: %v", err)
 					return false, nil
 				}
 			} else if tf.Status.Phase != traceflowv1.INITIAL && tf.Status.Phase != traceflowv1.RUNNING {
+				klog.Info("Enter delete part")
 				if err = controller.deleteTraceflowCRD(&tf); err != nil {
-					klog.V(2).Info("Delete traceflow CRD err: %v", err)
+					klog.Errorf("Delete traceflow CRD err: %v", err)
 					return false, nil
 				}
 			}

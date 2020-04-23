@@ -48,16 +48,16 @@ const (
 )
 
 const (
-	NxmFieldSrcMAC   = "NXM_OF_ETH_SRC"
-	NxmFieldDstMAC   = "NXM_OF_ETH_DST"
-	NxmFieldARPSha   = "NXM_NX_ARP_SHA"
-	NxmFieldARPTha   = "NXM_NX_ARP_THA"
-	NxmFieldARPSpa   = "NXM_OF_ARP_SPA"
-	NxmFieldARPTpa   = "NXM_OF_ARP_TPA"
-	NxmFieldCtLabel  = "NXM_NX_CT_LABEL"
-	NxmFieldCtMark   = "NXM_NX_CT_MARK"
-	NxmFieldARPOp    = "NXM_OF_ARP_OP"
-	NxmFieldReg      = "NXM_NX_REG"
+	NxmFieldSrcMAC      = "NXM_OF_ETH_SRC"
+	NxmFieldDstMAC      = "NXM_OF_ETH_DST"
+	NxmFieldARPSha      = "NXM_NX_ARP_SHA"
+	NxmFieldARPTha      = "NXM_NX_ARP_THA"
+	NxmFieldARPSpa      = "NXM_OF_ARP_SPA"
+	NxmFieldARPTpa      = "NXM_OF_ARP_TPA"
+	NxmFieldCtLabel     = "NXM_NX_CT_LABEL"
+	NxmFieldCtMark      = "NXM_NX_CT_MARK"
+	NxmFieldARPOp       = "NXM_OF_ARP_OP"
+	NxmFieldReg         = "NXM_NX_REG"
 	NxmFieldTunMetadata = "NXM_NX_TUN_METADATA"
 )
 
