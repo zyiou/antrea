@@ -65,33 +65,16 @@ func (controller *Controller) Run(stopCh <-chan struct{}) {
 
 	klog.V(2).Info("Starting Antrea Traceflow Controller")
 	wait.PollUntil(time.Second, func() (done bool, err error) {
-		crds, err := controller.client.ClusterinformationV1beta1().AntreaControllerInfos().List(v1.ListOptions{})
-                if err != nil {
-                	klog.Info("no monitor agent")
-                } else {
-			klog.Info("monitor agent exists")
-                	for _, v := range crds.Items {
-                		klog.Info("one monitor agent:", v.Name)
-                	}
-                }
-		bora, err := controller.client.AntreaV1().Traceflows().Get("bora1", v1.GetOptions{})
-		if err != nil {
-			klog.Info("bora1 not found")
-		} else {
-			klog.Info("bora1 found")
-			klog.Info("bora1:", bora.Name)
-		}
 		list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
-		klog.Info("Traceflow list size:", len(list.Items))
 		if err != nil {
 			klog.V(2).Info("Fail to list all Antrea Traceflows")
 			return false, err
 		}
 		for _, tf := range list.Items {
-			klog.Info("one tf is:", tf.Name)
 			if tf.Status.Phase == traceflowv1.INITIAL {
+				klog.Info("enter phase initial")
 				if _, err = controller.updateTraceflowCRD(&tf); err != nil {
-					klog.V(2).Info("Update traceflow CRD err: %v", err)
+					klog.Info("Update traceflow CRD err: %v", err)
 					return false, nil
 				}
 			} else if tf.Status.Phase != traceflowv1.INITIAL && tf.Status.Phase != traceflowv1.RUNNING {
