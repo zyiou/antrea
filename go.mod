@@ -54,8 +54,8 @@ require (
 )
 
 replace (
-	github.com/contiv/libOpenflow => github.com/wenyingd/libOpenflow v0.0.0-20200417045933-81b845c5c32e
-	github.com/contiv/ofnet => github.com/wenyingd/ofnet v0.0.0-20200420093239-97d1ece0459e
+	github.com/contiv/libOpenflow => github.com/wenyingd/libOpenflow v0.0.0-20200423142301-fac2368f3975
+	github.com/contiv/ofnet => github.com/wenyingd/ofnet v0.0.0-20200423144234-3d0816775cf6
 	// Octant is renamed from vmware/octant to vmware-tanzu/octant since v0.9.0.
 	// However, Octant v0.9.0 K8s API is not compatible with Antrea K8s API version.
 	// Furthermore, octant v0.8 and v0.9 do not check-in some generated code required for testing
