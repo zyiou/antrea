@@ -322,7 +322,7 @@ func (c *client) l2ForwardOutputFlow(category cookie.Category) binding.Flow {
 func (c *client) traceflowL2ForwardOutputFlow(crossNodeTag uint8, category cookie.Category) binding.Flow {
 	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
 	tunMetadataName := fmt.Sprintf("%s%d", binding.FieldTunMetadata, 0)
-	return c.pipeline[l2ForwardingOutTable].BuildFlow(priorityNormal + 2).
+	return c.pipeline[l2ForwardingOutTable].BuildFlow(priorityNormal+2).
 		MatchRegRange(int(marksReg), uint32(crossNodeTag), ofTraceflowMarkRange).
 		SetHardTimeout(300).
 		MatchProtocol(binding.ProtocolIP).

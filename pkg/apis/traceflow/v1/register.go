@@ -43,6 +43,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
 		&Traceflow{},
+		&TraceflowList{},
 	)
 
 	metav1.AddToGroupVersion(

@@ -28,6 +28,15 @@ var (
 	kubeConfig                           = "KUBECONFIG"
 )
 
+const (
+	tfNameCol       = "Trace"
+	srcNamespaceCol = "Source Namespace"
+	srcPodCol       = "Source Pod"
+	dstNamespaceCol = "Destination Namespace"
+	dstPodCol       = "Destination Pod"
+	crdCol          = "Detailed Information"
+)
+
 // This is octant-trace-plugin.
 // The plugin needs to run with octant version v0.10.2 or later.
 func main() {
@@ -135,6 +144,8 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 		if err != nil {
 			return fmt.Errorf("unable to get name at string : %w", err)
 		}
+		// Invoke GenGraph to show
+		_, _ = a.client.AntreaV1().Traceflows().Get(name, metav1.GetOptions{})
 		g := graphviz.New()
 		graph, err := g.Graph()
 		n, err := graph.CreateNode(name)
@@ -217,12 +228,36 @@ func (a *traceflowPlugin) traceflowHandler(request *service.Request) (component.
 		}
 	}
 
+	tfCols := component.NewTableCols(tfNameCol, srcNamespaceCol, srcPodCol, dstNamespaceCol, dstPodCol, crdCol)
+	tfTable := component.NewTableWithRows("Trace List", "", tfCols, a.getTfRows())
 	return component.ContentResponse{
 		Title: component.TitleFromString("Antrea Traceflow"),
 		Components: []component.Component{
 			layout.ToComponent("Antrea Traceflow"),
+			tfTable,
 		},
 		IconName:   icon.Overview,
 		IconSource: icon.Overview,
 	}, nil
+}
+
+// getTfRows gets rows for displaying Controller information
+func (a *traceflowPlugin) getTfRows() []component.TableRow {
+	tfs, err := client.AntreaV1().Traceflows().List(metav1.ListOptions{})
+	if err != nil {
+		log.Fatalf("Failed to get Traceflows %v", err)
+	}
+	tfRows := make([]component.TableRow, 0)
+	for _, tf := range tfs.Items {
+		tfRows = append(tfRows, component.TableRow{
+			tfNameCol:       component.NewText(tf.Name),
+			srcNamespaceCol: component.NewText(tf.SrcNamespace),
+			srcPodCol:       component.NewText(tf.SrcPod),
+			dstNamespaceCol: component.NewText(tf.DstNamespace),
+			dstPodCol:       component.NewText(tf.DstPod),
+			crdCol: component.NewLink(tf.Name, tf.Name,
+				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/"+tf.Name),
+		})
+	}
+	return tfRows
 }

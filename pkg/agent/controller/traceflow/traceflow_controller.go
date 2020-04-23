@@ -44,19 +44,19 @@ const (
 // Controller is responsible for setting up Openflow entries and inject traceflow packet into
 // switch for traceflow request.
 type Controller struct {
-	traceflowClient  clientsetversioned.Interface
-	ovsBridgeClient  ovsconfig.OVSBridgeClient
-	ofClient         openflow.Client
-	interfaceStore   interfacestore.InterfaceStore
-	networkConfig    *config.NetworkConfig
-	nodeConfig       *config.NodeConfig
-	nodeLister       corelisters.NodeLister
-	namespaceLister  corelisters.NamespaceLister
-	podLister        corelisters.PodLister
-	serviceLister    corelisters.ServiceLister
-	queue            workqueue.RateLimitingInterface
-	running          map[uint8]*traceflowv1.Traceflow		// tag->tf if tf.Status.Phase is INITIAL or RUNNING
-	senders          map[uint8]*traceflowv1.Traceflow		// tag->tf if tf is RUNNING and this Node is sender
+	traceflowClient clientsetversioned.Interface
+	ovsBridgeClient ovsconfig.OVSBridgeClient
+	ofClient        openflow.Client
+	interfaceStore  interfacestore.InterfaceStore
+	networkConfig   *config.NetworkConfig
+	nodeConfig      *config.NodeConfig
+	nodeLister      corelisters.NodeLister
+	namespaceLister corelisters.NamespaceLister
+	podLister       corelisters.PodLister
+	serviceLister   corelisters.ServiceLister
+	queue           workqueue.RateLimitingInterface
+	running         map[uint8]*traceflowv1.Traceflow // tag->tf if tf.Status.Phase is INITIAL or RUNNING
+	senders         map[uint8]*traceflowv1.Traceflow // tag->tf if tf is RUNNING and this Node is sender
 }
 
 // NewTraceflowController instantiates a new Controller object which will process Traceflow
@@ -78,19 +78,19 @@ func NewTraceflowController(
 	senders := make(map[uint8]*traceflowv1.Traceflow)
 
 	controller := &Controller{
-		traceflowClient:  traceflowClient,
-		ovsBridgeClient:  ovsBridgeClient,
-		ofClient:         client,
-		interfaceStore:   interfaceStore,
-		networkConfig:    networkConfig,
-		nodeConfig:       nodeConfig,
-		nodeLister:       nodeInformer.Lister(),
-		namespaceLister:  namespaceInformer.Lister(),
-		podLister:        podInformer.Lister(),
-		serviceLister:    serviceInformer.Lister(),
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "traceflow"),
-	 	running:		  running,
-		senders:          senders}
+		traceflowClient: traceflowClient,
+		ovsBridgeClient: ovsBridgeClient,
+		ofClient:        client,
+		interfaceStore:  interfaceStore,
+		networkConfig:   networkConfig,
+		nodeConfig:      nodeConfig,
+		nodeLister:      nodeInformer.Lister(),
+		namespaceLister: namespaceInformer.Lister(),
+		podLister:       podInformer.Lister(),
+		serviceLister:   serviceInformer.Lister(),
+		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "traceflow"),
+		running:         running,
+		senders:         senders}
 	return controller
 }
 
@@ -130,10 +130,10 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 			case
 				traceflowv1.INITIAL,
 				traceflowv1.RUNNING:
-					if tag != 0 {
-						c.running[tag] = &tf
-						c.enqueueTraceflow(&tf)
-					}
+				if tag != 0 {
+					c.running[tag] = &tf
+					c.enqueueTraceflow(&tf)
+				}
 			}
 		}
 		return false, nil
