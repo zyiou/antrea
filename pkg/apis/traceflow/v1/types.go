@@ -68,7 +68,7 @@ type Traceflow struct {
 	DstNamespace string `json:"dstNamespace,omitempty"`
 	DstPod       string `json:"dstPod,omitempty"`
 	DstService   string `json:"dstService,omitempty"`
-	RoundID      string `json:"roudID,omitempty"`
+	RoundID      string `json:"roundID,omitempty"`
 
 	Packet `json:",inline"`
 	Status `json:",inline"`

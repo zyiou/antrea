@@ -16,7 +16,6 @@ package traceflow
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,39 +48,46 @@ func NewTraceflowController(client clientsetversioned.Interface) *Controller {
 
 // Run creates traceflow controller CRD first after controller is running.
 func (controller *Controller) Run(stopCh <-chan struct{}) {
+	// test crd
+	test := traceflowv1.Traceflow{
+		SrcPod:       "pod0",
+		SrcNamespace: "ns0",
+		DstPod:       "pod1",
+	}
+	test.Name = "bora4"
+	test.Phase = 0
+	test.CrossNodeTag = 0
+	controller.client.AntreaV1().Traceflows().Create(&test)
+
 	// Load all cross node tags from CRD into controller's cache.
 	list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
 	if err != nil {
 		klog.Errorf("Failed to list all Antrea Traceflows")
 	}
 	for _, tf := range list.Items {
-		if tf.Status.Phase == traceflowv1.RUNNING {
-			if err := controller.occupyTag(tf.Status.CrossNodeTag); err != nil {
+		if tf.Phase == traceflowv1.RUNNING {
+			if err := controller.occupyTag(tf.CrossNodeTag); err != nil {
 				klog.Errorf("Load Traceflow's tag failed %v+: %v", tf, err)
 			}
-			controller.running[tf.Status.CrossNodeTag] = &tf
+			controller.running[tf.CrossNodeTag] = &tf
 		}
 	}
 
 	klog.Info("Starting Antrea Traceflow Controller")
-	wait.PollUntil(time.Second, func() (done bool, err error) {
+	wait.PollUntil(time.Second*5, func() (done bool, err error) {
 		list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
 		if err != nil {
 			klog.Errorf("Fail to list all Antrea Traceflows")
 			return false, err
 		}
 		for _, tf := range list.Items {
-			if tf.Status.Phase == traceflowv1.INITIAL {
-				klog.Info("Enter initialize part")
+			if tf.Phase == traceflowv1.INITIAL {
 				if _, err = controller.updateTraceflowCRD(&tf); err != nil {
 					klog.Errorf("Update traceflow CRD err: %v", err)
-					return false, nil
 				}
-			} else if tf.Status.Phase != traceflowv1.INITIAL && tf.Status.Phase != traceflowv1.RUNNING {
-				klog.Info("Enter delete part")
+			} else if tf.Phase != traceflowv1.INITIAL && tf.Phase != traceflowv1.RUNNING {
 				if err = controller.deleteTraceflowCRD(&tf); err != nil {
 					klog.Errorf("Delete traceflow CRD err: %v", err)
-					return false, nil
 				}
 			}
 		}
@@ -96,20 +102,21 @@ func (controller *Controller) updateTraceflowCRD(tf *traceflowv1.Traceflow) (*tr
 	}
 
 	// allocate cross node tag
-	tag, err := controller.allocateTag()
-	if err != nil {
-		return nil, err
+	if tf.CrossNodeTag == 0 {
+		tag, err := controller.allocateTag()
+		if err != nil {
+			return nil, err
+		}
+		tf.CrossNodeTag = tag
 	}
-	tf.Status.CrossNodeTag = tag
-	tf.ObjectMeta.Name = fmt.Sprint(tag)
 
-	tf.Status.Phase = traceflowv1.RUNNING
+	tf.Phase = traceflowv1.RUNNING
 	return controller.client.AntreaV1().Traceflows().Update(tf)
 }
 
 func (controller *Controller) deleteTraceflowCRD(tf *traceflowv1.Traceflow) error {
-	controller.deallocateTag(tf.Status.CrossNodeTag)
-	delete(controller.running, tf.Status.CrossNodeTag)
+	controller.deallocateTag(tf.CrossNodeTag)
+	delete(controller.running, tf.CrossNodeTag)
 	return controller.client.AntreaV1().Traceflows().Delete(tf.ObjectMeta.Name, &v1.DeleteOptions{})
 }
 
