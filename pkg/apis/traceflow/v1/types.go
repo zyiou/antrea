@@ -63,88 +63,88 @@ type Traceflow struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	SrcNamespace string
-	SrcPod       string
-	DstNamespace string
-	DstPod       string
-	DstService   string
-	RoundID      string
+	SrcNamespace string `json:"srcNamespace,omitempty"`
+	SrcPod       string `json:"srcPod,omitempty"`
+	DstNamespace string `json:"dstNamespace,omitempty"`
+	DstPod       string `json:"dstPod,omitempty"`
+	DstService   string `json:"dstService,omitempty"`
+	RoundID      string `json:"roudID,omitempty"`
 
-	Packet
-	Status
+	Packet `json:",inline"`
+	Status `json:",inline"`
 }
 
 type IPHeader struct {
-	SrcIP    string
-	DstIP    string
-	Protocol int
-	TTL      int
-	Flags    int
+	SrcIP    string `json:"srcIP,omitempty"`
+	DstIP    string `json:"dstIP,omitempty"`
+	Protocol int    `json:"protocol,omitempty"`
+	TTL      int    `json:"ttl,omitempty"`
+	Flags    int    `json:"flags,omitempty"`
 }
 
 type IPv6Header struct {
-	SrcIP      string
-	DstIP      string
-	NextHeader int
-	HopLimit   int
+	SrcIP      string `json:"srcIPv6IP,omitempty"`
+	DstIP      string `json:"dstIPv6IP,omitempty"`
+	NextHeader int    `json:"nextHeader,omitempty"`
+	HopLimit   int    `json:"hopLimit,omitempty"`
 }
 
 type TransportHeader struct {
-	ICMPEchoRequestHeader
-	UDPHeader
-	TCPHeader
+	ICMPEchoRequestHeader `json:",inline"`
+	UDPHeader             `json:",inline"`
+	TCPHeader             `json:",inline"`
 }
 
 type ICMPEchoRequestHeader struct {
-	ID       int
-	Sequence int
+	ID       int `json:"id,omitempty"`
+	Sequence int `json:"sequence,omitempty"`
 }
 
 type UDPHeader struct {
-	SrcPort int
-	DstPort int
+	SrcPort int `json:"srcUDPPort,omitempty"`
+	DstPort int `json:"dstUDPPort,omitempty"`
 }
 
 type TCPHeader struct {
-	SrcPort  int
-	DstPort  int
-	TCPFlags int
+	SrcPort  int `json:"srcTCPPort,omitempty"`
+	DstPort  int `json:"dstTCPPort,omitempty"`
+	TCPFlags int `json:"tcpFlags,omitempty"`
 }
 
 type Packet struct {
-	ResouceType   PacketResouceType
-	FrameSize     int
-	TransportType PacketTransportType
-	Payload       string
+	ResouceType   PacketResouceType   `json:"resouceType,omitempty"`
+	FrameSize     int                 `json:"frameSize,omitempty"`
+	TransportType PacketTransportType `json:"transportType,omitempty"`
+	Payload       string              `json:"payload,omitempty"`
 
-	IPHeader
-	IPv6Header
-	TransportHeader
+	IPHeader        `json:",inline"`
+	IPv6Header      `json:",inline"`
+	TransportHeader `json:",inline"`
 }
 
 type Status struct {
-	Phase        Phase
-	CrossNodeTag uint8
-	NodeSender   []Observation
-	NodeReceiver []Observation
+	Phase        Phase         `json:"phase,omitempty"`
+	CrossNodeTag uint8         `json:"crossNodeTag,omitempty"`
+	NodeSender   []Observation `json:"nodeSender,omitempty"`
+	NodeReceiver []Observation `json:"nodeReceiver,omitempty"`
 }
 
 type Observation struct {
-	ComponentType    ComponentType
-	ComponentSubType string
-	ComponentName    string
-	ResourceType     ResourceType
-	RoundID          string
-	NodeUUID         string
-	PodUUID          string
-	DstMAC           string
-	RuleID           string
-	Rule             string
-	TTL              int
-	TranslatedSrcIP  string
-	TranslatedDstIP  string
-	DropReason       DropReason
-	Timestamp        int
+	ComponentType    ComponentType `json:"componentType,omitempty"`
+	ComponentSubType string        `json:"componentSubType,omitempty"`
+	ComponentName    string        `json:"componentName,omitempty"`
+	ResourceType     ResourceType  `json:"resourceType,omitempty"`
+	RoundID          string        `json:"roundID,omitempty"`
+	NodeUUID         string        `json:"nodeUUID,omitempty"`
+	PodUUID          string        `json:"podUUID,omitempty"`
+	DstMAC           string        `json:"dstMAC,omitempty"`
+	RuleID           string        `json:"ruleID,omitempty"`
+	Rule             string        `json:"rule,omitempty"`
+	TTL              int           `json:"ttl,omitempty"`
+	TranslatedSrcIP  string        `json:"translatedSrcIP,omitempty"`
+	TranslatedDstIP  string        `json:"translatedDstIP,omitempty"`
+	DropReason       DropReason    `json:"dropReason,omitempty"`
+	Timestamp        int           `json:"timestamp,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -152,5 +152,5 @@ type TraceflowList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []Traceflow
+	Items []Traceflow `json:"items"`
 }
