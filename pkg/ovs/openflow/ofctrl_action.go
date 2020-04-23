@@ -215,20 +215,24 @@ func (a *ofFlowAction) SetTunnelDst(addr net.IP) FlowBuilder {
 
 // LoadARPOperation is an action to Load data to NXM_OF_ARP_OP field.
 func (a *ofFlowAction) LoadARPOperation(value uint16) FlowBuilder {
-	a.builder.ofFlow.LoadReg(NxmFieldARPOp, uint64(value), openflow13.NewNXRange(0, 15))
+	a.builder.ofFlow.LoadReg(NxmFieldARPOp, uint64(value), openflow13.NewNXRange(0, 15), false)
 	return a.builder
 }
 
 // LoadRange is an action to Load data to the target field at specified range.
 func (a *ofFlowAction) LoadRange(name string, value uint64, rng Range) FlowBuilder {
-	a.builder.ofFlow.LoadReg(name, value, rng.ToNXRange())
+	a.builder.ofFlow.LoadReg(name, value, rng.ToNXRange(), isTunMetadataField(name))
 	return a.builder
+}
+
+func isTunMetadataField(name string) bool {
+	return strings.HasPrefix(name, NxmFieldTunMetadata)
 }
 
 // LoadRegRange is an action to Load data to the target register at specified range.
 func (a *ofFlowAction) LoadRegRange(regID int, value uint32, rng Range) FlowBuilder {
 	name := fmt.Sprintf("%s%d", NxmFieldReg, regID)
-	a.builder.ofFlow.LoadReg(name, uint64(value), rng.ToNXRange())
+	a.builder.ofFlow.LoadReg(name, uint64(value), rng.ToNXRange(), false)
 	return a.builder
 }
 
@@ -242,7 +246,8 @@ func (a *ofFlowAction) Move(fromField, toField string) FlowBuilder {
 
 // MoveRange is an action to move data from "fromField" at "fromRange" to "toField" at "toRange".
 func (a *ofFlowAction) MoveRange(fromField, toField string, fromRange, toRange Range) FlowBuilder {
-	a.builder.ofFlow.MoveRegs(fromField, toField, fromRange.ToNXRange(), toRange.ToNXRange())
+	hasTunMetatadata := isTunMetadataField(fromField) || isTunMetadataField(toField)
+	a.builder.ofFlow.MoveRegs(fromField, toField, fromRange.ToNXRange(), toRange.ToNXRange(), hasTunMetatadata)
 	return a.builder
 }
 
