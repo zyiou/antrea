@@ -63,7 +63,7 @@ func (controller *Controller) Run(stopCh <-chan struct{}) {
 		}
 	}
 
-	klog.Info("Starting Antrea Traceflow Controller")
+	klog.V(2).Info("Starting Antrea Traceflow Controller")
 	wait.PollUntil(time.Second, func() (done bool, err error) {
 		crds, err := controller.client.ClusterinformationV1beta1().AntreaControllerInfos().List(v1.ListOptions{})
                 if err != nil {
@@ -84,18 +84,20 @@ func (controller *Controller) Run(stopCh <-chan struct{}) {
 		list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
 		klog.Info("Traceflow list size:", len(list.Items))
 		if err != nil {
-			klog.Info("Fail to list all Antrea Traceflows")
+			klog.V(2).Info("Fail to list all Antrea Traceflows")
 			return false, err
 		}
 		for _, tf := range list.Items {
 			klog.Info("one tf is:", tf.Name)
 			if tf.Status.Phase == traceflowv1.INITIAL {
 				if _, err = controller.updateTraceflowCRD(&tf); err != nil {
-					return false, err
+					klog.V(2).Info("Update traceflow CRD err: %v", err)
+					return false, nil
 				}
-			} else if tf.Status.Phase != traceflowv1.INITIAL || tf.Status.Phase != traceflowv1.RUNNING {
+			} else if tf.Status.Phase != traceflowv1.INITIAL && tf.Status.Phase != traceflowv1.RUNNING {
 				if err = controller.deleteTraceflowCRD(&tf); err != nil {
-					return false, err
+					klog.V(2).Info("Delete traceflow CRD err: %v", err)
+					return false, nil
 				}
 			}
 		}
