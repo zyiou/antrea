@@ -196,10 +196,10 @@ func (c *client) defaultFlows() (flows []binding.Flow) {
 // tunnelClassifierFlow generates the flow to mark traffic comes from the tunnelOFPort.
 func (c *client) tunnelClassifierFlow(tunnelOFPort uint32, category cookie.Category) binding.Flow {
 	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
-	tunMetadataName := fmt.Sprintf("%s%d", binding.FieldTunMetadata, 0)
+	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
 	return c.pipeline[classifierTable].BuildFlow(priorityNormal).
 		MatchInPort(tunnelOFPort).
-		Action().MoveRange(tunMetadataName, regName, ofPortMarkRange, ofPortMarkRange). // Traceflow
+		Action().MoveRange(tunMetadataName, regName, ofTraceflowMarkRange, ofTraceflowMarkRange). // Traceflow
 		Action().LoadRegRange(int(marksReg), markTrafficFromTunnel, binding.Range{0, 15}).
 		Action().ResubmitToTable(conntrackTable).
 		Cookie(c.cookieAllocator.Request(category).Raw()).
@@ -321,13 +321,13 @@ func (c *client) l2ForwardOutputFlow(category cookie.Category) binding.Flow {
 // l2ForwardOutputFlow for traceflow
 func (c *client) traceflowL2ForwardOutputFlow(crossNodeTag uint8, category cookie.Category) binding.Flow {
 	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
-	tunMetadataName := fmt.Sprintf("%s%d", binding.FieldTunMetadata, 0)
+	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
 	return c.pipeline[l2ForwardingOutTable].BuildFlow(priorityNormal+2).
 		MatchRegRange(int(marksReg), uint32(crossNodeTag), ofTraceflowMarkRange).
 		SetHardTimeout(300).
 		MatchProtocol(binding.ProtocolIP).
 		MatchRegRange(int(marksReg), portFoundMark, ofPortMarkRange).
-		Action().MoveRange(regName, tunMetadataName, ofPortMarkRange, ofPortMarkRange).
+		Action().MoveRange(regName, tunMetadataName, ofTraceflowMarkRange, ofTraceflowMarkRange).
 		Action().SendToController(1).
 		Action().OutputRegRange(int(portCacheReg), ofPortRegRange).
 		Cookie(c.cookieAllocator.Request(category).Raw()).

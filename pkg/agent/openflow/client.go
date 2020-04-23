@@ -547,5 +547,5 @@ func (c *client) InstallTraceflowFlows(crossNodeTag uint8) error {
 }
 
 func (c *client) InitialTLVMap() error {
-	return c.bridge.AddTLVMap(0x0104, 0x80, 32, 0)
+	return c.bridge.AddTLVMap(0x0104, 0x80, 4, 0)
 }
