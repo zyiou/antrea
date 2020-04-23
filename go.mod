@@ -17,6 +17,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
 	github.com/go-openapi/spec v0.17.2
+	github.com/goccy/go-graphviz v0.0.5
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/mock v1.4.1
 	github.com/golang/protobuf v1.3.2
@@ -33,7 +34,7 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/vishvananda/netlink v1.1.0
 	github.com/vmware/octant v0.8.0
-	golang.org/x/crypto v0.0.0-20191128160524-b544559bb6d1
+	golang.org/x/crypto v0.0.0-20200204104054-c9f3fb736b72
 	golang.org/x/exp v0.0.0-20190121172915-509febef88a4
 	golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
