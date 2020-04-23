@@ -20,6 +20,7 @@
 package testing
 
 import (
+	ofctrl "github.com/contiv/ofnet/ofctrl"
 	gomock "github.com/golang/mock/gomock"
 	config "github.com/vmware-tanzu/antrea/pkg/agent/config"
 	types "github.com/vmware-tanzu/antrea/pkg/agent/types"
@@ -135,6 +136,20 @@ func (mr *MockClientMockRecorder) GetPodFlowKeys(arg0 interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPodFlowKeys", reflect.TypeOf((*MockClient)(nil).GetPodFlowKeys), arg0)
 }
 
+// InitialTLVMap mocks base method
+func (m *MockClient) InitialTLVMap() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InitialTLVMap")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InitialTLVMap indicates an expected call of InitialTLVMap
+func (mr *MockClientMockRecorder) InitialTLVMap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitialTLVMap", reflect.TypeOf((*MockClient)(nil).InitialTLVMap))
+}
+
 // Initialize mocks base method
 func (m *MockClient) Initialize(arg0 types.RoundInfo, arg1 *config.NodeConfig, arg2 config.TrafficEncapModeType, arg3 uint32) (<-chan struct{}, error) {
 	m.ctrl.T.Helper()
@@ -234,6 +249,20 @@ func (mr *MockClientMockRecorder) InstallPolicyRuleFlows(arg0, arg1 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallPolicyRuleFlows", reflect.TypeOf((*MockClient)(nil).InstallPolicyRuleFlows), arg0, arg1)
 }
 
+// InstallTraceflowFlows mocks base method
+func (m *MockClient) InstallTraceflowFlows(arg0 byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstallTraceflowFlows", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InstallTraceflowFlows indicates an expected call of InstallTraceflowFlows
+func (mr *MockClientMockRecorder) InstallTraceflowFlows(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallTraceflowFlows", reflect.TypeOf((*MockClient)(nil).InstallTraceflowFlows), arg0)
+}
+
 // IsConnected mocks base method
 func (m *MockClient) IsConnected() bool {
 	m.ctrl.T.Helper()
@@ -258,6 +287,34 @@ func (m *MockClient) ReplayFlows() {
 func (mr *MockClientMockRecorder) ReplayFlows() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplayFlows", reflect.TypeOf((*MockClient)(nil).ReplayFlows))
+}
+
+// SendTraceflowPacket mocks base method
+func (m *MockClient) SendTraceflowPacket(arg0 byte, arg1, arg2, arg3, arg4 string, arg5, arg6 byte, arg7, arg8, arg9 uint16, arg10 byte, arg11, arg12 uint16, arg13, arg14 byte, arg15, arg16 uint16, arg17 uint32, arg18 int32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendTraceflowPacket", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendTraceflowPacket indicates an expected call of SendTraceflowPacket
+func (mr *MockClientMockRecorder) SendTraceflowPacket(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendTraceflowPacket", reflect.TypeOf((*MockClient)(nil).SendTraceflowPacket), arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18)
+}
+
+// SubscribePacketIn mocks base method
+func (m *MockClient) SubscribePacketIn(arg0 byte, arg1 chan *ofctrl.PacketIn) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SubscribePacketIn", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SubscribePacketIn indicates an expected call of SubscribePacketIn
+func (mr *MockClientMockRecorder) SubscribePacketIn(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubscribePacketIn", reflect.TypeOf((*MockClient)(nil).SubscribePacketIn), arg0, arg1)
 }
 
 // UninstallNodeFlows mocks base method
