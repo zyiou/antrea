@@ -1,12 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
-	"github.com/goccy/go-graphviz"
 	"github.com/vmware/octant/pkg/icon"
 	"github.com/vmware/octant/pkg/navigation"
 	"github.com/vmware/octant/pkg/plugin"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/vmware-tanzu/antrea/pkg/apis/traceflow/v1"
 	clientset "github.com/vmware-tanzu/antrea/pkg/client/clientset/versioned"
+	"github.com/vmware-tanzu/antrea/pkg/graphviz"
 )
 
 var (
@@ -101,30 +101,25 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 
 	switch actionName {
 	case addTfAction:
-		name, err := request.Payload.String("name")
-		if err != nil {
-			return fmt.Errorf("unable to get name at string : %w", err)
-		}
-		fromNamespace, err := request.Payload.String("fromNamespace")
+		fromNamespace, err := request.Payload.String(srcNamespaceCol)
 		if err != nil {
 			return fmt.Errorf("unable to get fromNamespace at string : %w", err)
 		}
-		fromPod, err := request.Payload.String("fromPod")
+		fromPod, err := request.Payload.String(srcPodCol)
 		if err != nil {
 			return fmt.Errorf("unable to get fromPod at string : %w", err)
 		}
-		toNamespace, err := request.Payload.String("toNamespace")
+		toNamespace, err := request.Payload.String(dstNamespaceCol)
 		if err != nil {
 			return fmt.Errorf("unable to get toNamespace at string : %w", err)
 		}
-		toPod, err := request.Payload.String("toPod")
+		toPod, err := request.Payload.String(dstPodCol)
 		if err != nil {
 			return fmt.Errorf("unable to get toPod at string : %w", err)
 		}
-
-		_, err = a.client.AntreaV1().Traceflows().Create(&v1.Traceflow{
+		tf := &v1.Traceflow{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
+				Name: fromPod + "." + toPod,
 			},
 			SrcNamespace: fromNamespace,
 			SrcPod:       fromPod,
@@ -134,8 +129,41 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 			RoundID:      "",
 			Packet:       v1.Packet{},
 			Status:       v1.Status{},
-		})
+		}
+		// The status below is used for temporary test
+		// TODO: remove this part
+		ob1 := v1.Observation{
+			ComponentType: v1.SPOOFGUARD,
+			Timestamp:     time.Now().Nanosecond(),
+			NodeUUID:      "node A",
+		}
+		ob2 := v1.Observation{
+			ComponentType: v1.DFW,
+			Timestamp:     time.Now().Nanosecond() + 1,
+		}
+		ob3 := v1.Observation{
+			ComponentType: v1.ROUTING,
+			Timestamp:     time.Now().Nanosecond() + 2,
+		}
+		ob4 := v1.Observation{
+			ComponentType: v1.ROUTING,
+			Timestamp:     time.Now().Nanosecond() + 3,
+			NodeUUID:      "node B",
+		}
+		ob5 := v1.Observation{
+			ComponentType: v1.DFW,
+			Timestamp:     time.Now().Nanosecond() + 4,
+		}
+		ob6 := v1.Observation{
+			ComponentType: v1.FORWARDING,
+			Timestamp:     time.Now().Nanosecond() + 5,
+		}
+		tf.Status.NodeSender = append(tf.Status.NodeSender, ob1, ob2, ob3)
+		tf.Status.NodeReceiver = append(tf.Status.NodeReceiver, ob4, ob5, ob6)
+
+		_, err = a.client.AntreaV1().Traceflows().Create(tf)
 		if err != nil {
+			log.Printf("Failed to create tf %v", err)
 			return err
 		}
 		return nil
@@ -145,31 +173,11 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 			return fmt.Errorf("unable to get name at string : %w", err)
 		}
 		// Invoke GenGraph to show
-		_, _ = a.client.AntreaV1().Traceflows().Get(name, metav1.GetOptions{})
-		g := graphviz.New()
-		graph, err := g.Graph()
-		n, err := graph.CreateNode(name)
+		tf, err := a.client.AntreaV1().Traceflows().Get(name, metav1.GetOptions{})
 		if err != nil {
-			log.Fatal(err)
+			return nil
 		}
-		m, err := graph.CreateNode("m")
-		if err != nil {
-			log.Fatal(err)
-		}
-		e, err := graph.CreateEdge("e", n, m)
-		if err != nil {
-			log.Fatal(err)
-		}
-		e.SetLabel("e")
-		var buf bytes.Buffer
-		if err := g.Render(graph, "dot", &buf); err != nil {
-			log.Fatal(err)
-		}
-		a.graph = buf.String()
-		if err := graph.Close(); err != nil {
-			log.Fatal(err)
-		}
-		g.Close()
+		a.graph = graphviz.GenGraph(tf)
 		return nil
 	default:
 		return fmt.Errorf("recieved action request for %s, but no handler defined", pluginName)
@@ -185,11 +193,10 @@ func (a *traceflowPlugin) traceflowHandler(request *service.Request) (component.
 
 	card := component.NewCard("Antrea Traceflow")
 	form := component.Form{Fields: []component.FormField{
-		component.NewFormFieldText("name", "name", ""),
-		component.NewFormFieldText("fromNamespace", "fromNamespace", ""),
-		component.NewFormFieldText("fromPod", "fromPod", ""),
-		component.NewFormFieldText("toNamespace", "toNamespace", ""),
-		component.NewFormFieldText("toPod", "toPod", ""),
+		component.NewFormFieldText(srcNamespaceCol, srcNamespaceCol, ""),
+		component.NewFormFieldText(srcPodCol, srcPodCol, ""),
+		component.NewFormFieldText(dstNamespaceCol, dstNamespaceCol, ""),
+		component.NewFormFieldText(dstPodCol, dstPodCol, ""),
 		component.NewFormFieldHidden("action", addTfAction),
 	}}
 	addTf := component.Action{
@@ -256,7 +263,7 @@ func (a *traceflowPlugin) getTfRows() []component.TableRow {
 			dstNamespaceCol: component.NewText(tf.DstNamespace),
 			dstPodCol:       component.NewText(tf.DstPod),
 			crdCol: component.NewLink(tf.Name, tf.Name,
-				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/"+tf.Name),
+				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/v1"+tf.Name),
 		})
 	}
 	return tfRows
