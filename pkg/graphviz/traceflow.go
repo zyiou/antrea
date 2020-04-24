@@ -19,9 +19,16 @@ var componentString = map[v1.ComponentType]string{
 	v1.FORWARDING: "FORWARDING",
 }
 
+var resourceString = map[v1.ResourceType]string{
+	v1.DELIVERED: "Delivered",
+	v1.RECEIVED:  "Received",
+	v1.FORWARDED: "Forwarded",
+	v1.DROPPED:   "Dropped",
+}
+
 func getObservation(target *v1.Observation, obs []v1.Observation) *v1.Observation {
 	for i := range obs {
-		if target.ComponentType == obs[i].ComponentType {
+		if target.ComponentType == obs[i].ComponentType && target.ResourceType == obs[i].ResourceType {
 			return &obs[i]
 		}
 	}
@@ -46,16 +53,24 @@ func genSubGraph(graph *cgraph.Graph, expectedObs []v1.Observation, obs []v1.Obs
 		node.SetShape(cgraph.BoxShape)
 		node.SetStyle(cgraph.RoundedNodeStyle)
 		nodes = append(nodes, node)
-		if i == 0 {
-			continue
+		var edge *cgraph.Edge
+		edgeName := fmt.Sprintf("%s_%d", graph.Name(), i)
+		if i > 0 {
+			edge, _ = graph.CreateEdge(edgeName, nodes[i-1], nodes[i])
+		} else {
+			edge, _ = graph.CreateEdge(edgeName, graph.FirstNode(), nodes[i])
 		}
-		edgeName := fmt.Sprintf("%s_%d_%d", graph.Name(), i-1, i)
-		edge, _ := graph.CreateEdge(edgeName, nodes[i-1], nodes[i])
 		edge.SetDir(dir)
 		actualObj := getObservation(&o, obs)
 		if actualObj == nil {
 			node.SetColor("red")
+			//edge.SetColor("red")
 			edge.SetStyle("invis")
+			//node.SetStyle(cgraph.DashedNodeStyle)
+		} else {
+			edge.SetColor("blue")
+			node.SetLabel(componentString[o.ComponentType]+"\n"+resourceString[o.ResourceType])
+			//node.SetShape("record")
 		}
 	}
 	return nodes
@@ -64,24 +79,30 @@ func genSubGraph(graph *cgraph.Graph, expectedObs []v1.Observation, obs []v1.Obs
 var expectedSenderObservations = []v1.Observation{
 	{
 		ComponentType: v1.SPOOFGUARD,
+		ResourceType:  v1.FORWARDED,
 	},
 	{
 		ComponentType: v1.DFW,
+		ResourceType:  v1.FORWARDED,
 	},
 	{
-		ComponentType: v1.ROUTING,
+		ComponentType: v1.FORWARDING,
+		ResourceType:  v1.FORWARDED,
 	},
 }
 
 var expectedReceiverObservations = []v1.Observation{
 	{
-		ComponentType: v1.ROUTING,
+		ComponentType: v1.FORWARDING,
+		ResourceType:  v1.RECEIVED,
 	},
 	{
 		ComponentType: v1.DFW,
+		ResourceType:  v1.FORWARDED,
 	},
 	{
 		ComponentType: v1.FORWARDING,
+		ResourceType:  v1.DELIVERED,
 	},
 }
 
@@ -94,20 +115,21 @@ func GenGraph(tf *v1.Traceflow) string {
 	}
 	cluster1 := graph.SubGraph("cluster_source", 1)
 	cluster1.SetStyle(cgraph.FilledGraphStyle)
-	srcPod, _ := cluster1.CreateNode(tf.SrcNamespace + "/" + tf.SrcPod)
+	cluster1.CreateNode(tf.SrcNamespace + "/" + tf.SrcPod)
 	nodes1 := genSubGraph(cluster1, expectedSenderObservations, tf.Status.NodeSender, cgraph.ForwardDir)
-	cluster1.CreateEdge("src-pod-out", srcPod, nodes1[0])
 
 	cluster2 := graph.SubGraph("cluster_dest", 1)
 	cluster2.SetStyle(cgraph.FilledGraphStyle)
-	dstPod, _ := cluster2.CreateNode(tf.DstNamespace + "/" + tf.DstPod)
+	cluster2.CreateNode(tf.DstNamespace + "/" + tf.DstPod)
 	nodes2 := genSubGraph(cluster2, expectedReceiverObservations, tf.Status.NodeReceiver, cgraph.BackDir)
-	dstPodIn, _ := cluster2.CreateEdge("dst-pod-in", dstPod, nodes2[0])
-	dstPodIn.SetDir(cgraph.BackDir)
-	//dstPodIn.SetStyle("invis")
 
 	edge, _ := graph.CreateEdge("cross_node", nodes1[len(nodes1)-1], nodes2[len(nodes2)-1])
 	edge.SetConstraint(false)
+	if len(tf.Status.NodeReceiver) == 0 {
+		edge.SetStyle("invis")
+	} else {
+		edge.SetColor("blue")
+	}
 
 	var buf bytes.Buffer
 	if err := g.Render(graph, "dot", &buf); err != nil {

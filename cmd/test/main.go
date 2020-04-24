@@ -21,6 +21,22 @@ func GenGraphTest() string {
 	return graphviz.GenGraph(tf)
 }
 
+func newTestTraceflow2() *v1.Traceflow {
+	tf := &v1.Traceflow{
+		TypeMeta:     metav1.TypeMeta{},
+		ObjectMeta:   metav1.ObjectMeta{},
+		SrcNamespace: "ns1",
+		SrcPod:       "client",
+		DstNamespace: "ns2",
+		DstPod:       "server",
+		DstService:   "",
+		RoundID:      "",
+		Packet:       v1.Packet{},
+		Status:       v1.Status{},
+	}
+	return tf
+}
+
 func newTestTraceflow() *v1.Traceflow {
 	tf := &v1.Traceflow{
 		TypeMeta:     metav1.TypeMeta{},
@@ -36,31 +52,36 @@ func newTestTraceflow() *v1.Traceflow {
 	}
 	ob1 := v1.Observation{
 		ComponentType: v1.SPOOFGUARD,
+		ResourceType: v1.FORWARDED,
 		Timestamp:     time.Now().Nanosecond(),
 		NodeUUID:      "node A",
 	}
 	ob2 := v1.Observation{
 		ComponentType: v1.DFW,
+		ResourceType: v1.FORWARDED,
 		Timestamp:     time.Now().Nanosecond() + 1,
 	}
 	ob3 := v1.Observation{
-		ComponentType: v1.ROUTING,
+		ComponentType: v1.FORWARDING,
+		ResourceType: v1.FORWARDED,
 		Timestamp:     time.Now().Nanosecond() + 2,
 	}
 	ob4 := v1.Observation{
-		ComponentType: v1.ROUTING,
+		ComponentType: v1.FORWARDING,
+		ResourceType: v1.RECEIVED,
 		Timestamp:     time.Now().Nanosecond() + 3,
 		NodeUUID:      "node B",
 	}
 	ob5 := v1.Observation{
 		ComponentType: v1.DFW,
+		ResourceType: v1.FORWARDED,
 		Timestamp:     time.Now().Nanosecond() + 4,
 	}
-	ob6 := v1.Observation{
-		ComponentType: v1.FORWARDING,
-		Timestamp:     time.Now().Nanosecond() + 5,
-	}
+	//ob6 := v1.Observation{
+	//	ComponentType: v1.FORWARDING,
+	//	Timestamp:     time.Now().Nanosecond() + 5,
+	//}
 	tf.Status.NodeSender = append(tf.Status.NodeSender, ob1, ob2, ob3)
-	tf.Status.NodeReceiver = append(tf.Status.NodeReceiver, ob4, ob5, ob6)
+	tf.Status.NodeReceiver = append(tf.Status.NodeReceiver, ob4, ob5)
 	return tf
 }
