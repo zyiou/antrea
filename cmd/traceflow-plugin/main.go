@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/vmware/octant/pkg/icon"
 	"github.com/vmware/octant/pkg/navigation"
@@ -113,9 +114,9 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 		if err != nil {
 			log.Printf("unable to get srcPod at string : %w", err)
 		}
-		srcPort, err := request.Payload.Uint16(srcPortCol)
+		srcPort, err := request.Payload.String(srcPortCol)
 		if err != nil {
-			log.Printf("unable to get srcPort at int : %w", err)
+			log.Printf("unable to get srcPort at string : %w", err)
 		}
 		dstNamespace, err := request.Payload.String(dstNamespaceCol)
 		if err != nil {
@@ -125,9 +126,9 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 		if err != nil {
 			log.Printf("unable to get dstPod at string : %w", err)
 		}
-		dstPort, err := request.Payload.Uint16(dstPortCol)
+		dstPort, err := request.Payload.String(dstPortCol)
 		if err != nil {
-			log.Printf("unable to get dstPort at int : %w", err)
+			log.Printf("unable to get dstPort at string : %w", err)
 		}
 		protocol, err := request.Payload.String(protocolCol)
 		if err != nil {
@@ -146,8 +147,18 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 			Packet:       v1.Packet{},
 			Status:       v1.Status{},
 		}
-		tf.TCPHeader.SrcPort = int(srcPort)
-		tf.TCPHeader.DstPort = int(dstPort)
+		if srcPort != "" {
+			sport, err := strconv.Atoi(srcPort)
+			if err != nil {
+				tf.TCPHeader.SrcPort = sport
+			}
+		}
+		if dstPort != "" {
+			dport, err := strconv.Atoi(dstPort)
+			if err != nil {
+				tf.TCPHeader.DstPort = dport
+			}
+		}
 		if protocol == "TCP" {
 			tf.Protocol = 6
 		}
@@ -156,6 +167,7 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 			log.Printf("Failed to create tf %v", err)
 			return err
 		}
+		a.graph = graphviz.GenGraph(tf)
 		return nil
 	case showGraphAction:
 		name, err := request.Payload.String("name")
