@@ -182,6 +182,7 @@ func (c *Controller) processTraceflowItem() bool {
 		klog.Errorf("Error syncing Node %s, Aborting. Error: %v", key, err)
 		c.queue.Forget(key)
 	}
+	time.Sleep(time.Duration(2) * time.Second)
 	return true
 }
 
@@ -214,11 +215,8 @@ func (c *Controller) startTraceflow(tf *traceflowv1.Traceflow) error {
 	}
 
 	// Inject packet if this Node is sender
-	err = c.injectPacket(tf)
-	if err != nil {
-		klog.Errorf("Injecting packet error for Traceflow %s, err: %v", tf.Name, err)
-	}
-	return err
+	time.Sleep(time.Duration(2) * time.Second)
+	return c.injectPacket(tf)
 }
 
 func (c *Controller) deployFlowEntries(tf *traceflowv1.Traceflow) error {
