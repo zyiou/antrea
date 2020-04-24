@@ -536,6 +536,11 @@ func (c *client) InstallTraceflowFlows(crossNodeTag uint8) error {
 	if err := c.Add(flow); err != nil {
 		return err
 	}
+	klog.Infof("DEBUG: Installing traceflow invalid entries %s", crossNodeTag)
+	flow = c.traceflowConnectionTrackFlows(crossNodeTag, cookie.Default)
+	if err := c.Add(flow); err != nil {
+		return err
+	}
 	klog.Infof("DEBUG: Installing traceflow network policy entries %s", crossNodeTag)
 	flows := []binding.Flow{}
 	for _, ctx := range c.globalConjMatchFlowCache {

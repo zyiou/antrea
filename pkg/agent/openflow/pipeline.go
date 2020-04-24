@@ -271,6 +271,17 @@ func (c *client) connectionTrackFlows(category cookie.Category) (flows []binding
 	return
 }
 
+// Connection track flows for traceflow
+func (c *client) traceflowConnectionTrackFlows(crossNodeTag uint8, category cookie.Category) binding.Flow {
+	connectionTrackStateTable := c.pipeline[conntrackStateTable]
+	return connectionTrackStateTable.BuildFlow(priorityNormal + 2).
+		MatchRegRange(int(traceflowReg), uint32(crossNodeTag), ofTraceflowMarkRange).
+		SetHardTimeout(300).
+		Action().ResubmitToTable(connectionTrackStateTable.GetNext()).
+		Cookie(c.cookieAllocator.Request(category).Raw()).
+		Done()
+}
+
 // reEntranceBypassCTFlow generates flow that bypass CT for traffic re-entering host network space.
 // In host network space, we disable conntrack for re-entrance traffic so not to confuse conntrack
 // in host namespace, This however has inverse effect on conntrack in Antrea conntrack zone as well,
@@ -319,7 +330,7 @@ func (c *client) l2ForwardOutputFlow(category cookie.Category) binding.Flow {
 		Done()
 }
 
-// l2ForwardOutputFlow for traceflow
+// Traceflow l2ForwardOutputFlow
 func (c *client) traceflowL2ForwardOutputFlow(crossNodeTag uint8, category cookie.Category) binding.Flow {
 	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, traceflowReg)
 	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
