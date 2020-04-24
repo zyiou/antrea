@@ -21,14 +21,6 @@ import (
 )
 
 // Querier queriers traceflow info.
-type Querier interface {
-	GetTraceflowCRD(tag uint8) (*traceflowv1.Traceflow, error)
-}
-
-// GetTraceflowCRD returns traceflow CRD with cross node tag.
-func (controller *Controller) GetTraceflowCRD(tag uint8) (*traceflowv1.Traceflow, error) {
-	if tf, ok := controller.running[tag]; ok {
-		return tf, nil
-	}
-	return nil, errors.New("traceflow with the cross tag node doesn't exist")
-}
+// type Querier interface {
+// 	GetTraceflowCRD(tag uint8) (*traceflowv1.Traceflow, error)
+// }

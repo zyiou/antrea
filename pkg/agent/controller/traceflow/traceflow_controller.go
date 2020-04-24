@@ -120,7 +120,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	wait.PollUntil(time.Second, func() (done bool, err error) {
 		list, err := c.traceflowClient.AntreaV1().Traceflows().List(v1.ListOptions{})
 		if err != nil {
-			klog.Info("Fail to list all Antrea Traceflow CRD")
+			klog.Info("Fail to list all Antrea Traceflow CRD: %v", err)
 			return false, err
 		}
 		for _, tf := range list.Items {
@@ -214,7 +214,11 @@ func (c *Controller) startTraceflow(tf *traceflowv1.Traceflow) error {
 	}
 
 	// Inject packet if this Node is sender
-	return c.injectPacket(tf)
+	err = c.injectPacket(tf)
+	if err != nil {
+		klog.Errorf("Injecting packet error for Traceflow %s, err: %v", tf.Name, err)
+	}
+	return err
 }
 
 func (c *Controller) deployFlowEntries(tf *traceflowv1.Traceflow) error {
@@ -258,6 +262,9 @@ func (c *Controller) injectPacket(tf *traceflowv1.Traceflow) error {
 		}
 	}
 
+	klog.Infof("DEBUG: Packet tag: %s, srcMAC: %s, dstMAC: %s, srcIP: %s, dstIP: %s, inPort: %s, TF: %+v",
+		tf.CrossNodeTag, podInterface.MAC.String(), dstMAC, podInterface.IP.String(), dstIP, podInterface.OFPort, tf)
+
 	return c.ofClient.SendTraceflowPacket(
 		tf.CrossNodeTag,
 		podInterface.MAC.String(),
@@ -288,3 +295,4 @@ func (c *Controller) updateTraceflowCRD(
 	tf.Status.Phase = phase
 	return c.traceflowClient.AntreaV1().Traceflows().Update(tf)
 }
+

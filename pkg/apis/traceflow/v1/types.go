@@ -70,8 +70,8 @@ type Traceflow struct {
 	DstService   string `json:"dstService,omitempty"`
 	RoundID      string `json:"roundID,omitempty"`
 
-	Packet `json:",inline"`
-	Status `json:",inline"`
+	Packet `json:"packet"`
+	Status `json:"status"`
 }
 
 type IPHeader struct {
@@ -90,9 +90,9 @@ type IPv6Header struct {
 }
 
 type TransportHeader struct {
-	ICMPEchoRequestHeader `json:",inline"`
-	UDPHeader             `json:",inline"`
-	TCPHeader             `json:",inline"`
+	ICMPEchoRequestHeader `json:"icmpEchoRequestHeader"`
+	UDPHeader             `json:"udpHeader"`
+	TCPHeader             `json:"tcpHeader"`
 }
 
 type ICMPEchoRequestHeader struct {
@@ -117,9 +117,9 @@ type Packet struct {
 	TransportType PacketTransportType `json:"transportType,omitempty"`
 	Payload       string              `json:"payload,omitempty"`
 
-	IPHeader        `json:",inline"`
-	IPv6Header      `json:",inline"`
-	TransportHeader `json:",inline"`
+	IPHeader        `json:"ipHeader"`
+	IPv6Header      `json:"ipv6Header"`
+	TransportHeader `json:"transportHeader"`
 }
 
 type Status struct {

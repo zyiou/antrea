@@ -49,15 +49,15 @@ func NewTraceflowController(client clientsetversioned.Interface) *Controller {
 // Run creates traceflow controller CRD first after controller is running.
 func (controller *Controller) Run(stopCh <-chan struct{}) {
 	// test crd
-	test := traceflowv1.Traceflow{
-		SrcPod:       "pod0",
-		SrcNamespace: "ns0",
-		DstPod:       "pod1",
-	}
-	test.Name = "bora4"
-	test.Phase = 0
-	test.CrossNodeTag = 0
-	controller.client.AntreaV1().Traceflows().Create(&test)
+	// test := traceflowv1.Traceflow{
+	// 	SrcPod:       "pod0",
+	// 	SrcNamespace: "ns0",
+	// 	DstPod:       "pod1",
+	// }
+	// test.Name = "bora4"
+	// test.Phase = traceflowv1.INITIAL
+	// test.CrossNodeTag = 0
+	// controller.client.AntreaV1().Traceflows().Create(&test)
 
 	// Load all cross node tags from CRD into controller's cache.
 	list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
@@ -74,7 +74,7 @@ func (controller *Controller) Run(stopCh <-chan struct{}) {
 	}
 
 	klog.Info("Starting Antrea Traceflow Controller")
-	wait.PollUntil(time.Second*5, func() (done bool, err error) {
+	wait.PollUntil(time.Second, func() (done bool, err error) {
 		list, err := controller.client.AntreaV1().Traceflows().List(v1.ListOptions{})
 		if err != nil {
 			klog.Errorf("Fail to list all Antrea Traceflows")
@@ -85,10 +85,10 @@ func (controller *Controller) Run(stopCh <-chan struct{}) {
 				if _, err = controller.updateTraceflowCRD(&tf); err != nil {
 					klog.Errorf("Update traceflow CRD err: %v", err)
 				}
-			} else if tf.Phase != traceflowv1.INITIAL && tf.Phase != traceflowv1.RUNNING {
-				if err = controller.deleteTraceflowCRD(&tf); err != nil {
-					klog.Errorf("Delete traceflow CRD err: %v", err)
-				}
+			// } else if tf.Phase != traceflowv1.INITIAL && tf.Phase != traceflowv1.RUNNING {
+			// 	if err = controller.deleteTraceflowCRD(&tf); err != nil {
+			// 		klog.Errorf("Delete traceflow CRD err: %v", err)
+			// 	}
 			}
 		}
 		return false, nil
