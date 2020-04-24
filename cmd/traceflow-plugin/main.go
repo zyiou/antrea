@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
+	"strconv"
 
 	"github.com/vmware/octant/pkg/icon"
 	"github.com/vmware/octant/pkg/navigation"
@@ -32,9 +32,13 @@ const (
 	tfNameCol       = "Trace"
 	srcNamespaceCol = "Source Namespace"
 	srcPodCol       = "Source Pod"
+	srcPortCol      = "Source Port"
 	dstNamespaceCol = "Destination Namespace"
 	dstPodCol       = "Destination Pod"
+	dstPortCol      = "Destination Port"
+	protocolCol     = "Protocol"
 	crdCol          = "Detailed Information"
+	phaseCol        = "Phase"
 )
 
 // This is octant-trace-plugin.
@@ -96,76 +100,74 @@ func (a *traceflowPlugin) navHandler(request *service.NavigationRequest) (naviga
 func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 	actionName, err := request.Payload.String("action")
 	if err != nil {
-		return fmt.Errorf("unable to get input at string: %w", err)
+		log.Printf("unable to get input at string: %w", err)
+		return nil
 	}
 
 	switch actionName {
 	case addTfAction:
-		fromNamespace, err := request.Payload.String(srcNamespaceCol)
+		srcNamespace, err := request.Payload.String(srcNamespaceCol)
 		if err != nil {
-			return fmt.Errorf("unable to get fromNamespace at string : %w", err)
+			log.Printf("unable to get srcNamespace at string : %w", err)
 		}
-		fromPod, err := request.Payload.String(srcPodCol)
+		srcPod, err := request.Payload.String(srcPodCol)
 		if err != nil {
-			return fmt.Errorf("unable to get fromPod at string : %w", err)
+			log.Printf("unable to get srcPod at string : %w", err)
 		}
-		toNamespace, err := request.Payload.String(dstNamespaceCol)
+		srcPort, err := request.Payload.String(srcPortCol)
 		if err != nil {
-			return fmt.Errorf("unable to get toNamespace at string : %w", err)
+			log.Printf("unable to get srcPort at string : %w", err)
 		}
-		toPod, err := request.Payload.String(dstPodCol)
+		dstNamespace, err := request.Payload.String(dstNamespaceCol)
 		if err != nil {
-			return fmt.Errorf("unable to get toPod at string : %w", err)
+			log.Printf("unable to get dstNamespace at string : %w", err)
+		}
+		dstPod, err := request.Payload.String(dstPodCol)
+		if err != nil {
+			log.Printf("unable to get dstPod at string : %w", err)
+		}
+		dstPort, err := request.Payload.String(dstPortCol)
+		if err != nil {
+			log.Printf("unable to get dstPort at string : %w", err)
+		}
+		protocol, err := request.Payload.String(protocolCol)
+		if err != nil {
+			log.Printf("unable to get dstPod at string : %w", err)
 		}
 		tf := &v1.Traceflow{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fromPod + "." + toPod,
+				Name: srcPod + "." + dstPod,
 			},
-			SrcNamespace: fromNamespace,
-			SrcPod:       fromPod,
-			DstNamespace: toNamespace,
-			DstPod:       toPod,
+			SrcNamespace: srcNamespace,
+			SrcPod:       srcPod,
+			DstNamespace: dstNamespace,
+			DstPod:       dstPod,
 			DstService:   "",
 			RoundID:      "",
 			Packet:       v1.Packet{},
 			Status:       v1.Status{},
 		}
-		// The status below is used for temporary test
-		// TODO: remove this part
-		ob1 := v1.Observation{
-			ComponentType: v1.SPOOFGUARD,
-			Timestamp:     time.Now().Nanosecond(),
-			NodeUUID:      "node A",
+		if srcPort != "" {
+			sport, err := strconv.Atoi(srcPort)
+			if err != nil {
+				tf.TCPHeader.SrcPort = sport
+			}
 		}
-		ob2 := v1.Observation{
-			ComponentType: v1.DFW,
-			Timestamp:     time.Now().Nanosecond() + 1,
+		if dstPort != "" {
+			dport, err := strconv.Atoi(dstPort)
+			if err != nil {
+				tf.TCPHeader.DstPort = dport
+			}
 		}
-		ob3 := v1.Observation{
-			ComponentType: v1.ROUTING,
-			Timestamp:     time.Now().Nanosecond() + 2,
+		if protocol == "TCP" {
+			tf.Protocol = 6
 		}
-		ob4 := v1.Observation{
-			ComponentType: v1.ROUTING,
-			Timestamp:     time.Now().Nanosecond() + 3,
-			NodeUUID:      "node B",
-		}
-		ob5 := v1.Observation{
-			ComponentType: v1.DFW,
-			Timestamp:     time.Now().Nanosecond() + 4,
-		}
-		ob6 := v1.Observation{
-			ComponentType: v1.FORWARDING,
-			Timestamp:     time.Now().Nanosecond() + 5,
-		}
-		tf.Status.NodeSender = append(tf.Status.NodeSender, ob1, ob2, ob3)
-		tf.Status.NodeReceiver = append(tf.Status.NodeReceiver, ob4, ob5, ob6)
-
-		_, err = a.client.AntreaV1().Traceflows().Create(tf)
+		tf, err = a.client.AntreaV1().Traceflows().Create(tf)
 		if err != nil {
 			log.Printf("Failed to create tf %v", err)
 			return err
 		}
+		a.graph = graphviz.GenGraph(tf)
 		return nil
 	case showGraphAction:
 		name, err := request.Payload.String("name")
@@ -195,8 +197,11 @@ func (a *traceflowPlugin) traceflowHandler(request *service.Request) (component.
 	form := component.Form{Fields: []component.FormField{
 		component.NewFormFieldText(srcNamespaceCol, srcNamespaceCol, ""),
 		component.NewFormFieldText(srcPodCol, srcPodCol, ""),
+		component.NewFormFieldText(srcPortCol, srcPortCol, ""),
 		component.NewFormFieldText(dstNamespaceCol, dstNamespaceCol, ""),
 		component.NewFormFieldText(dstPodCol, dstPodCol, ""),
+		component.NewFormFieldText(dstPortCol, dstPortCol, ""),
+		component.NewFormFieldText(protocolCol, protocolCol, ""),
 		component.NewFormFieldHidden("action", addTfAction),
 	}}
 	addTf := component.Action{
@@ -235,7 +240,7 @@ func (a *traceflowPlugin) traceflowHandler(request *service.Request) (component.
 		}
 	}
 
-	tfCols := component.NewTableCols(tfNameCol, srcNamespaceCol, srcPodCol, dstNamespaceCol, dstPodCol, crdCol)
+	tfCols := component.NewTableCols(tfNameCol, srcNamespaceCol, srcPodCol, dstNamespaceCol, dstPodCol, crdCol, phaseCol)
 	tfTable := component.NewTableWithRows("Trace List", "", tfCols, a.getTfRows())
 	return component.ContentResponse{
 		Title: component.TitleFromString("Antrea Traceflow"),
@@ -256,6 +261,18 @@ func (a *traceflowPlugin) getTfRows() []component.TableRow {
 	}
 	tfRows := make([]component.TableRow, 0)
 	for _, tf := range tfs.Items {
+		status := "UNKNOWN"
+		if tf.Phase == 0 {
+			status = "INITIAL"
+		} else if tf.Phase == 1 {
+			status = "RUNNING"
+		} else if tf.Phase == 2 {
+			status = "SUCCESS"
+		} else if tf.Phase == 3 {
+			status = "TIMEOUT"
+		} else if tf.Phase == 4 {
+			status = "ERROR"
+		}
 		tfRows = append(tfRows, component.TableRow{
 			tfNameCol:       component.NewText(tf.Name),
 			srcNamespaceCol: component.NewText(tf.SrcNamespace),
@@ -263,7 +280,8 @@ func (a *traceflowPlugin) getTfRows() []component.TableRow {
 			dstNamespaceCol: component.NewText(tf.DstNamespace),
 			dstPodCol:       component.NewText(tf.DstPod),
 			crdCol: component.NewLink(tf.Name, tf.Name,
-				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/v1"+tf.Name),
+				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/v1/"+tf.Name),
+			phaseCol: component.NewText(status),
 		})
 	}
 	return tfRows
