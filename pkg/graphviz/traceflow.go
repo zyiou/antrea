@@ -28,6 +28,9 @@ var resourceString = map[v1.ResourceType]string{
 
 func getObservation(target *v1.Observation, obs []v1.Observation) *v1.Observation {
 	for i := range obs {
+		if target.ComponentType == v1.DFW && target.ComponentType == obs[i].ComponentType {
+			return &obs[i]
+		}
 		if target.ComponentType == obs[i].ComponentType && target.ResourceType == obs[i].ResourceType {
 			return &obs[i]
 		}
@@ -62,15 +65,17 @@ func genSubGraph(graph *cgraph.Graph, expectedObs []v1.Observation, obs []v1.Obs
 		}
 		edge.SetDir(dir)
 		actualObj := getObservation(&o, obs)
-		if actualObj == nil {
-			node.SetColor("red")
-			//edge.SetColor("red")
+		switch {
+		case actualObj == nil:
 			edge.SetStyle("invis")
-			//node.SetStyle(cgraph.DashedNodeStyle)
-		} else {
+		case actualObj.ComponentType == v1.DFW && actualObj.ResourceType == v1.DROPPED:
+			node.SetColor("red")
+			edge.SetStyle("invis")
+			node.SetLabel(componentString[actualObj.ComponentType]+"\n"+resourceString[actualObj.ResourceType])
+		default:
+			node.SetColor("blue")
 			edge.SetColor("blue")
-			node.SetLabel(componentString[o.ComponentType]+"\n"+resourceString[o.ResourceType])
-			//node.SetShape("record")
+			node.SetLabel(componentString[actualObj.ComponentType]+"\n"+resourceString[actualObj.ResourceType])
 		}
 	}
 	return nodes
@@ -125,9 +130,13 @@ func GenGraph(tf *v1.Traceflow) string {
 
 	edge, _ := graph.CreateEdge("cross_node", nodes1[len(nodes1)-1], nodes2[len(nodes2)-1])
 	edge.SetConstraint(false)
-	if len(tf.Status.NodeReceiver) == 0 {
+	switch {
+	case len(tf.Status.NodeReceiver) == 0 && len(tf.Status.NodeSender) == len(expectedSenderObservations):
+		edge.SetColor("red")
+		edge.SetStyle(cgraph.DashedEdgeStyle)
+	case len(tf.Status.NodeSender) < len(expectedSenderObservations):
 		edge.SetStyle("invis")
-	} else {
+	default:
 		edge.SetColor("blue")
 	}
 
