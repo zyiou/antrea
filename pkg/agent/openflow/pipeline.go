@@ -340,8 +340,8 @@ func (c *client) traceflowL2ForwardOutputFlow(crossNodeTag uint8, category cooki
 		MatchProtocol(binding.ProtocolIP).
 		MatchRegRange(int(marksReg), portFoundMark, ofPortMarkRange).
 		Action().MoveRange(regName, tunMetadataName, ofTraceflowMarkRange, ofTraceflowMarkRange).
-		Action().SendToController(1).
 		Action().OutputRegRange(int(portCacheReg), ofPortRegRange).
+		Action().SendToController(1).
 		Cookie(c.cookieAllocator.Request(category).Raw()).
 		Done()
 }

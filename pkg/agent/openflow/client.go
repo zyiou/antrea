@@ -17,6 +17,7 @@ package openflow
 import (
 	"fmt"
 	"net"
+	"math/rand"
 
 	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/klog"
@@ -499,7 +500,11 @@ func (c *client) SendTraceflowPacket(
 	packetOutBuilder = packetOutBuilder.SetSrcIP(net.ParseIP(srcIP))
 	packetOutBuilder = packetOutBuilder.SetDstIP(net.ParseIP(dstIP))
 
-	packetOutBuilder = packetOutBuilder.SetTTL(ttl)
+	if ttl == 0 {
+		packetOutBuilder = packetOutBuilder.SetTTL(128)
+	} else {
+		packetOutBuilder = packetOutBuilder.SetTTL(ttl)
+	}
 	packetOutBuilder = packetOutBuilder.SetIPFlags(IPFlags)
 
 	switch IPProtocol {
@@ -511,6 +516,9 @@ func (c *client) SendTraceflowPacket(
 		packetOutBuilder = packetOutBuilder.SetICMPSequence(ICMPSequence)
 	case 6:
 		packetOutBuilder = packetOutBuilder.SetIPProtocol(binding.ProtocolTCP)
+		if TCPsPort == 0 {
+			TCPsPort = uint16(rand.Uint32())
+		}
 		packetOutBuilder = packetOutBuilder.SetTCPsPort(TCPsPort)
 		packetOutBuilder = packetOutBuilder.SetTCPdPort(TCPdPort)
 		packetOutBuilder = packetOutBuilder.SetTCPFlags(TCPFlags)
@@ -544,12 +552,14 @@ func (c *client) InstallTraceflowFlows(crossNodeTag uint8) error {
 	klog.Infof("DEBUG: Installing traceflow network policy entries %s", crossNodeTag)
 	flows := []binding.Flow{}
 	for _, ctx := range c.globalConjMatchFlowCache {
-		flows = append(
-			flows,
-			ctx.dropFlow.CopyToBuilder().
-				MatchRegRange(int(traceflowReg), uint32(crossNodeTag), ofTraceflowMarkRange).
-				Action().SendToController(1).
-				Done())
+		if ctx.dropFlow != nil {
+			flows = append(
+				flows,
+				ctx.dropFlow.CopyToBuilder().
+					MatchRegRange(int(traceflowReg), uint32(crossNodeTag), ofTraceflowMarkRange).
+					Action().SendToController(1).
+					Done())
+		}
 	}
 	return c.AddAll(flows)
 }

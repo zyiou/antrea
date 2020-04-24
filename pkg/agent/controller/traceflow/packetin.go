@@ -18,7 +18,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
+	"net"
+	
+	"k8s.io/klog"
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/ofnet/ofctrl"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -32,7 +34,10 @@ func (c *Controller) ReceivePacketIn(stopCh <-chan struct{}) {
 
 	wait.PollUntil(time.Second, func() (done bool, err error) {
 		pktIn := <-ch
-		_, err = c.ParsePacketIn(pktIn)
+		tf, err := c.ParsePacketIn(pktIn)
+		klog.Infof("updated crd: %+v", tf)
+		c.updateTraceflowCRD(tf, tf.Phase)
+
 		return false, err
 	}, stopCh)
 }
@@ -57,31 +62,32 @@ func (c *Controller) ParsePacketIn(pktIn *ofctrl.PacketIn) (*v1.Traceflow, error
 		return nil, err
 	}
 
-	var obs []v1.Observation
+	obs := make([]v1.Observation, 0)
 	ifSender := ifSender(uint8(tag), c.senders)
 	tableID := pktIn.TableId
+
 	if ifSender {
-		obs = tf.NodeSender
+		ob := new(v1.Observation)
+		ob.ComponentType = v1.SPOOFGUARD
+		ob.ResourceType = v1.FORWARDED
+		ob.NodeUUID = c.nodeConfig.Name
+		obs = append(obs, *ob)
 	} else {
-		obs = tf.NodeReceiver
+		ob := new(v1.Observation)
+		ob.ComponentType = v1.FORWARDING
+		ob.ResourceType = v1.RECEIVED
+		ob.NodeUUID = c.nodeConfig.Name
+		obs = append(obs, *ob)
 	}
 
 	// get drop table
-	if match = getMatchField(matchers, 3); match != nil {
-		rngDrop := openflow13.NewNXRange(0, 7)
-		_, err := getInfoInReg(matchers, match, rngDrop)
-		if err != nil {
-			return nil, err
-		}
+	if tableID == 60 || tableID == 100 {
 		ob := new(v1.Observation)
-		if ifSender {
-			ob.ResourceType = v1.DROPPED
-		} else {
-			ob.ResourceType = v1.RECEIVED
-		}
+		ob.ResourceType = v1.DROPPED
 		ob.ComponentType = v1.DFW
+		ob.NodeUUID = c.nodeConfig.Name
 		obs = append(obs, *ob)
-		tf.Phase = v1.SUCCESS
+		tf.Phase = v1.SUCCESS		
 	}
 
 	// ingress Rule, DFW
@@ -93,6 +99,8 @@ func (c *Controller) ParsePacketIn(pktIn *ofctrl.PacketIn) (*v1.Traceflow, error
 		ob := new(v1.Observation)
 		ob.RuleID = fmt.Sprint(ingress)
 		ob.ComponentType = v1.DFW
+		ob.ResourceType = v1.FORWARDED
+		ob.NodeUUID = c.nodeConfig.Name
 		obs = append(obs, *ob)
 	}
 
@@ -105,23 +113,38 @@ func (c *Controller) ParsePacketIn(pktIn *ofctrl.PacketIn) (*v1.Traceflow, error
 		ob := new(v1.Observation)
 		ob.RuleID = fmt.Sprint(egress)
 		ob.ComponentType = v1.DFW
+		ob.ResourceType = v1.FORWARDED
+		ob.NodeUUID = c.nodeConfig.Name
 		obs = append(obs, *ob)
 	}
 
 	// get output table
 	if tableID == 110 {
-		rngOut := openflow13.NewNXRange(8, 15)
-		_, err := getInfoInReg(matchers, match, rngOut)
-		if err != nil {
-			return nil, err
-		}
 		ob := new(v1.Observation)
+		
+		if match = getMatchField(matchers, 8); match != nil {
+			name, err := getInfoInReg(matchers, match, nil)
+			if err != nil {
+				return nil, err
+			}
+			ob.ComponentName = intToIP(name)
+			ob.ResourceType = v1.FORWARDED
+		} else {
+			tf.Phase = v1.SUCCESS
+			ob.ResourceType = v1.DELIVERED
+		}
+
 		ob.ComponentName = tableIDToComponentName[tableID]
-		ob.ResourceType = v1.FORWARDED
 		ob.ComponentType = v1.FORWARDING
+		ob.NodeUUID = c.nodeConfig.Name
 		obs = append(obs, *ob)
 	}
 	
+	if ifSender {
+		tf.NodeSender = obs
+	} else {
+		tf.NodeReceiver = obs
+	}
 	return tf, nil
 }
 
@@ -139,4 +162,13 @@ func (c *Controller) GetTraceflowCRD(tag uint8) (*v1.Traceflow, error) {
 		return tf, nil
 	}
 	return nil, errors.New("traceflow with the cross tag node doesn't exist")
+}
+
+func intToIP(ip uint32) string {
+	result := make(net.IP, 4)
+	result[0] = byte(ip)
+	result[1] = byte(ip >> 8)
+	result[2] = byte(ip >> 16)
+	result[3] = byte(ip >> 24)
+	return result.String()
 }

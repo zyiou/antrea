@@ -101,13 +101,13 @@ type ICMPEchoRequestHeader struct {
 }
 
 type UDPHeader struct {
-	SrcPort int `json:"srcUDPPort,omitempty"`
-	DstPort int `json:"dstUDPPort,omitempty"`
+	SrcUDPPort int `json:"srcUDPPort,omitempty"`
+	DstUDPPort int `json:"dstUDPPort,omitempty"`
 }
 
 type TCPHeader struct {
-	SrcPort  int `json:"srcTCPPort,omitempty"`
-	DstPort  int `json:"dstTCPPort,omitempty"`
+	SrcTCPPort  int `json:"srcTCPPort,omitempty"`
+	DstTCPPort  int `json:"dstTCPPort,omitempty"`
 	TCPFlags int `json:"tcpFlags,omitempty"`
 }
 

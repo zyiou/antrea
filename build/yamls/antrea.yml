@@ -346,7 +346,7 @@ data:
     # - geneve
     # - gre
     # - stt
-    #tunnelType: vxlan
+    tunnelType: geneve
 
     # Default MTU to use for the host gateway interface and the network interface of each Pod. If
     # omitted, antrea-agent will default this value to 1450 to accommodate for tunnel encapsulate

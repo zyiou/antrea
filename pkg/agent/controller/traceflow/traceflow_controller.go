@@ -260,6 +260,10 @@ func (c *Controller) injectPacket(tf *traceflowv1.Traceflow) error {
 		}
 	}
 
+	if tf.Protocol == 0 {
+		tf.Protocol = 1
+	}
+
 	klog.Infof("DEBUG: Packet tag: %s, srcMAC: %s, dstMAC: %s, srcIP: %s, dstIP: %s, inPort: %s, TF: %+v",
 		tf.CrossNodeTag, podInterface.MAC.String(), dstMAC, podInterface.IP.String(), dstIP, podInterface.OFPort, tf)
 
@@ -272,11 +276,11 @@ func (c *Controller) injectPacket(tf *traceflowv1.Traceflow) error {
 		uint8(tf.Protocol),
 		uint8(tf.TTL),
 		uint16(tf.Flags),
-		uint16(tf.TCPHeader.SrcPort),
-		uint16(tf.TCPHeader.DstPort),
+		uint16(tf.TCPHeader.SrcTCPPort),
+		uint16(tf.TCPHeader.DstTCPPort),
 		uint8(tf.TCPFlags),
-		uint16(tf.UDPHeader.SrcPort),
-		uint16(tf.UDPHeader.DstPort),
+		uint16(tf.UDPHeader.SrcUDPPort),
+		uint16(tf.UDPHeader.DstUDPPort),
 		0,
 		0,
 		uint16(tf.ICMPEchoRequestHeader.ID),

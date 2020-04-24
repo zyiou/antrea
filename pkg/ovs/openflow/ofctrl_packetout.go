@@ -203,12 +203,13 @@ func (b *ofPacketOutBuilder) Done() *ofctrl.PacketOut {
 		b.setICMPData()
 		b.pktOut.IPHeader.Length = 20 + b.pktOut.ICMPHeader.Len()
 	} else if b.pktOut.TCPHeader != nil {
-		b.pktOut.TCPHeader.HdrLen = 20
+		b.pktOut.TCPHeader.HdrLen = 21
 		b.pktOut.IPHeader.Length = 20 + b.pktOut.TCPHeader.Len()
 	} else if b.pktOut.UDPHeader != nil {
 		b.pktOut.IPHeader.Length = 20 + b.pktOut.UDPHeader.Len()
 	}
 	b.pktOut.IPHeader.Id = uint16(rand.Uint32())
+	b.pktOut.IPHeader.Version = 4
 	return b.pktOut
 }
 
