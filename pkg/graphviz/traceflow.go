@@ -47,9 +47,6 @@ func genSubGraph(graph *cgraph.Graph, expectedObs []v1.Observation, obs []v1.Obs
 		}
 	}
 	for i, o := range expectedObs {
-		if len(o.NodeUUID) > 0 {
-			graph.SetLabel(o.NodeUUID)
-		}
 		nodeName := fmt.Sprintf("%s_%d", graph.Name(), i)
 		node, _ := graph.CreateNode(nodeName)
 		node.SetLabel(componentString[o.ComponentType])
@@ -65,6 +62,9 @@ func genSubGraph(graph *cgraph.Graph, expectedObs []v1.Observation, obs []v1.Obs
 		}
 		edge.SetDir(dir)
 		actualObj := getObservation(&o, obs)
+		if actualObj != nil && len(actualObj.NodeUUID) > 0 {
+			graph.SetLabel(actualObj.NodeUUID)
+		}
 		switch {
 		case actualObj == nil:
 			edge.SetStyle("invis")
