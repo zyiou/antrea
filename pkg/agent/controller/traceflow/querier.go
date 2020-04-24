@@ -15,9 +15,9 @@
 package traceflow
 
 import (
-	"errors"
+	// "errors"
 
-	traceflowv1 "github.com/vmware-tanzu/antrea/pkg/apis/traceflow/v1"
+	// traceflowv1 "github.com/vmware-tanzu/antrea/pkg/apis/traceflow/v1"
 )
 
 // Querier queriers traceflow info.
