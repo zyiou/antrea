@@ -90,6 +90,7 @@ const (
 	ingressReg   regType = 4
 	egressReg    regType = 5
 	tunnelDstReg regType = 8
+	traceflowReg regType = 9
 
 	ctZone = 0xfff0
 
@@ -195,7 +196,7 @@ func (c *client) defaultFlows() (flows []binding.Flow) {
 
 // tunnelClassifierFlow generates the flow to mark traffic comes from the tunnelOFPort.
 func (c *client) tunnelClassifierFlow(tunnelOFPort uint32, category cookie.Category) binding.Flow {
-	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
+	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, traceflowReg)
 	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
 	return c.pipeline[classifierTable].BuildFlow(priorityNormal).
 		MatchInPort(tunnelOFPort).
@@ -320,10 +321,10 @@ func (c *client) l2ForwardOutputFlow(category cookie.Category) binding.Flow {
 
 // l2ForwardOutputFlow for traceflow
 func (c *client) traceflowL2ForwardOutputFlow(crossNodeTag uint8, category cookie.Category) binding.Flow {
-	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
+	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, traceflowReg)
 	tunMetadataName := fmt.Sprintf("%s%d", binding.NxmFieldTunMetadata, 0)
 	return c.pipeline[l2ForwardingOutTable].BuildFlow(priorityNormal+2).
-		MatchRegRange(int(marksReg), uint32(crossNodeTag), ofTraceflowMarkRange).
+		MatchRegRange(int(traceflowReg), uint32(crossNodeTag), ofTraceflowMarkRange).
 		SetHardTimeout(300).
 		MatchProtocol(binding.ProtocolIP).
 		MatchRegRange(int(marksReg), portFoundMark, ofPortMarkRange).
@@ -429,7 +430,7 @@ func (c *client) l3FwdFlowToRemote(
 		Action().LoadRegRange(int(marksReg), portFoundMark, ofPortMarkRange).
 		// Flow based tunnel. Set tunnel destination.
 		Action().SetTunnelDst(tunnelPeer).
-		Action().LoadRegRange(int(tunnelDstReg), binary.BigEndian.Uint32(tunnelPeer.To4()), binding.Range{0, 31}). // Traceflow
+		Action().LoadRegRange(int(tunnelDstReg), binary.LittleEndian.Uint32(tunnelPeer.To4()), binding.Range{0, 31}). // Traceflow
 		// Bypass l2ForwardingCalcTable and tables for ingress rules (which won't
 		// apply to packets to remote Nodes).
 		Action().ResubmitToTable(conntrackCommitTable).

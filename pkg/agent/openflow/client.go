@@ -485,8 +485,7 @@ func (c *client) SendTraceflowPacket(
 	inPort uint32,
 	outPort int32) error {
 
-	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, 0)
-	regRange := binding.Range{28, 31}
+	regName := fmt.Sprintf("%s%d", binding.NxmFieldReg, traceflowReg)
 
 	packetOutBuilder := c.bridge.BuildPacketOut()
 	parsedSrcMAC, _ := net.ParseMAC(srcMAC)
@@ -525,21 +524,25 @@ func (c *client) SendTraceflowPacket(
 	if outPort != -1 {
 		packetOutBuilder = packetOutBuilder.SetOutport(uint32(outPort))
 	}
-	packetOutBuilder = packetOutBuilder.AddLoadAction(regName, uint64(crossNodeTag), regRange)
+	packetOutBuilder = packetOutBuilder.AddLoadAction(regName, uint64(crossNodeTag), ofTraceflowMarkRange)
 
 	packetOutObj := packetOutBuilder.Done()
 	return c.bridge.SendPacketOut(packetOutObj)
 }
 
 func (c *client) InstallTraceflowFlows(crossNodeTag uint8) error {
-	flows := []binding.Flow{
-		c.traceflowL2ForwardOutputFlow(crossNodeTag, cookie.Default),
+	klog.Infof("DEBUG: Installing traceflow output entries %s", crossNodeTag)
+	flow := c.traceflowL2ForwardOutputFlow(crossNodeTag, cookie.Default)
+	if err := c.Add(flow); err != nil {
+		return err
 	}
+	klog.Infof("DEBUG: Installing traceflow network policy entries %s", crossNodeTag)
+	flows := []binding.Flow{}
 	for _, ctx := range c.globalConjMatchFlowCache {
 		flows = append(
 			flows,
 			ctx.dropFlow.CopyToBuilder().
-				MatchRegRange(int(marksReg), uint32(crossNodeTag), ofTraceflowMarkRange).
+				MatchRegRange(int(traceflowReg), uint32(crossNodeTag), ofTraceflowMarkRange).
 				Action().SendToController(1).
 				Done())
 	}

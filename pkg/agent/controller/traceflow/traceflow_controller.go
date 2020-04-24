@@ -126,11 +126,13 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 		for _, tf := range list.Items {
 			p := tf.Status.Phase
 			tag := tf.Status.CrossNodeTag
+			klog.Infof("DEBUG: Get traceflow %s phase %s tag %s", tf.Name, p, tag)
 			switch p {
 			case
 				traceflowv1.INITIAL,
 				traceflowv1.RUNNING:
 				if tag != 0 {
+					klog.Infof("DEBUG: Add traceflow %s to queue", tf.Name)
 					c.running[tag] = &tf
 					c.enqueueTraceflow(&tf)
 				}
@@ -185,6 +187,7 @@ func (c *Controller) processTraceflowItem() bool {
 
 // syncTraceflow
 func (c *Controller) syncTraceflow(traceflowName string) error {
+	klog.Infof("DEBUG: Syncing traceflow %s", traceflowName)
 	startTime := time.Now()
 	defer func() {
 		klog.V(4).Infof("Finished syncing Traceflow for %s. (%v)", traceflowName, time.Since(startTime))
@@ -215,6 +218,7 @@ func (c *Controller) startTraceflow(tf *traceflowv1.Traceflow) error {
 }
 
 func (c *Controller) deployFlowEntries(tf *traceflowv1.Traceflow) error {
+	klog.Infof("DEBUG: Installing traceflow %s entries", tf.Name)
 	return c.ofClient.InstallTraceflowFlows(tf.CrossNodeTag)
 }
 
