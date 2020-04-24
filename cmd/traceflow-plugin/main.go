@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/vmware/octant/pkg/icon"
 	"github.com/vmware/octant/pkg/navigation"
@@ -130,37 +129,6 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 			Packet:       v1.Packet{},
 			Status:       v1.Status{},
 		}
-		// The status below is used for temporary test
-		// TODO: remove this part
-		ob1 := v1.Observation{
-			ComponentType: v1.SPOOFGUARD,
-			Timestamp:     time.Now().Nanosecond(),
-			NodeUUID:      "node A",
-		}
-		ob2 := v1.Observation{
-			ComponentType: v1.DFW,
-			Timestamp:     time.Now().Nanosecond() + 1,
-		}
-		ob3 := v1.Observation{
-			ComponentType: v1.ROUTING,
-			Timestamp:     time.Now().Nanosecond() + 2,
-		}
-		ob4 := v1.Observation{
-			ComponentType: v1.ROUTING,
-			Timestamp:     time.Now().Nanosecond() + 3,
-			NodeUUID:      "node B",
-		}
-		ob5 := v1.Observation{
-			ComponentType: v1.DFW,
-			Timestamp:     time.Now().Nanosecond() + 4,
-		}
-		ob6 := v1.Observation{
-			ComponentType: v1.FORWARDING,
-			Timestamp:     time.Now().Nanosecond() + 5,
-		}
-		tf.Status.NodeSender = append(tf.Status.NodeSender, ob1, ob2, ob3)
-		tf.Status.NodeReceiver = append(tf.Status.NodeReceiver, ob4, ob5, ob6)
-
 		_, err = a.client.AntreaV1().Traceflows().Create(tf)
 		if err != nil {
 			log.Printf("Failed to create tf %v", err)
@@ -263,7 +231,7 @@ func (a *traceflowPlugin) getTfRows() []component.TableRow {
 			dstNamespaceCol: component.NewText(tf.DstNamespace),
 			dstPodCol:       component.NewText(tf.DstPod),
 			crdCol: component.NewLink(tf.Name, tf.Name,
-				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/v1"+tf.Name),
+				"/cluster-overview/custom-resources/traceflows.antrea.tanzu.vmware.com/v1/"+tf.Name),
 		})
 	}
 	return tfRows
