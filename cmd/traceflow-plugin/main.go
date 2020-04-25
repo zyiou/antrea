@@ -150,13 +150,13 @@ func (a *traceflowPlugin) actionHandler(request *service.ActionRequest) error {
 		if srcPort != "" {
 			sport, err := strconv.Atoi(srcPort)
 			if err == nil {
-				tf.TCPHeader.SrcPort = sport
+				tf.TCPHeader.SrcTCPPort = sport
 			}
 		}
 		if dstPort != "" {
 			dport, err := strconv.Atoi(dstPort)
 			if err == nil {
-				tf.TCPHeader.DstPort = dport
+				tf.TCPHeader.DstTCPPort = dport
 			}
 		}
 		if protocol == "TCP" {
