@@ -62,8 +62,10 @@ var (
 		"destinationServicePortName",
 		"ingressNetworkPolicyName",
 		"ingressNetworkPolicyNamespace",
+		"ingressNetworkPolicyRuleAction",
 		"egressNetworkPolicyName",
 		"egressNetworkPolicyNamespace",
+		"egressNetworkPolicyRuleAction",
 		"tcpState",
 		"flowType",
 	}
@@ -130,6 +132,7 @@ var (
 		"destinationServicePortName",
 		"ingressNetworkPolicyName",
 		"ingressNetworkPolicyNamespace",
+		"ingressNetworkPolicyRuleAction",
 		"egressNetworkPolicyName",
 		"egressNetworkPolicyNamespace",
 	}

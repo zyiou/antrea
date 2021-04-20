@@ -27,6 +27,7 @@ import (
 
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter"
 	connectionstest "github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/connections/testing"
+	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/denyconnections"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/flowrecords"
 	ipfixtest "github.com/vmware-tanzu/antrea/pkg/ipfix/testing"
 )
@@ -282,6 +283,22 @@ func getConnection(isIPv6 bool, isPresent bool, statusFlag uint32, protoID uint8
 	return conn
 }
 
+func getDenyConnection(isIPv6 bool) *flowexporter.DenyConnection {
+	var tuple, _ flowexporter.Tuple
+	if !isIPv6 {
+		tuple, _ = makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
+	} else {
+		srcIP := net.IP([]byte{0x20, 0x1, 0x0, 0x0, 0x32, 0x38, 0xdf, 0xe1, 0x0, 0x63, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xfb})
+		dstIP := net.IP([]byte{0x20, 0x1, 0x0, 0x0, 0x32, 0x38, 0xdf, 0xe1, 0x0, 0x63, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xfc})
+		tuple, _ = makeTuple(&srcIP, &dstIP, 6, 65280, 255)
+	}
+	return &flowexporter.DenyConnection{
+		FlowKey:  tuple,
+		IsIPv6:   isIPv6,
+		TimeSeen: time.Now().Add(-testIdleFlowTimeout),
+	}
+}
+
 func getFlowRecord(conn *flowexporter.Connection, isIPv6 bool, isActive bool) flowexporter.FlowRecord {
 	flowRecord := &flowexporter.FlowRecord{
 		Conn:               *conn,
@@ -415,6 +432,11 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			assert.NoError(t, err)
 			flowExp.numDataSetsSent = 0
 
+			denyConn := getDenyConnection(isIPv6)
+			flowExp.denyConnStore = denyconnections.NewDenyConnectionStore()
+			flowExp.denyConnStore.AddOrUpdateConnection(denyConn)
+			assert.Equal(t, flowExp.denyConnStore.GetNumOfConnections(), 1)
+
 			// Get the flow record and update it.
 			flowRec, exists := flowExp.flowRecords.GetFlowRecordFromMap(&connKey)
 			if !exists {
@@ -426,32 +448,32 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			flowRec.LastExportTime = time.Now().Add(-tt.lastExportTimeDiff)
 			flowExp.flowRecords.AddFlowRecordToMap(&connKey, flowRec)
 
+			count := 1
 			if tt.isRecordActive {
-				if !isIPv6 {
-					mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, flowExp.templateIDv4).Return(nil)
-					mockDataSet.EXPECT().AddRecord(flowExp.elementsListv4, flowExp.templateIDv4).Return(nil)
-				} else {
-					mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, flowExp.templateIDv6).Return(nil)
-					mockDataSet.EXPECT().AddRecord(flowExp.elementsListv6, flowExp.templateIDv6).Return(nil)
-				}
+				count += 1
 				if flowexporter.IsConnectionDying(conn) {
 					mockConnStore.EXPECT().SetExportDone(connKey)
 				}
-				mockIPFIXExpProc.EXPECT().SendSet(mockDataSet).Return(0, nil)
-				mockDataSet.EXPECT().ResetSet()
-				err = flowExp.sendFlowRecords()
-				assert.NoError(t, err)
-				assert.Equalf(t, uint64(1), flowExp.numDataSetsSent, "data set should have been sent.")
-				if flowexporter.IsConnectionDying(conn) {
-					_, recPresent := flowExp.flowRecords.GetFlowRecordFromMap(&connKey)
-					assert.Falsef(t, recPresent, "record should not be in the map")
-				}
-			} else {
-				err = flowExp.sendFlowRecords()
-				assert.NoError(t, err)
-				assert.Equalf(t, uint64(0), flowExp.numDataSetsSent, "data set should not have been sent.")
 			}
+			if !isIPv6 {
+				mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, flowExp.templateIDv4).Times(count).Return(nil)
+				mockDataSet.EXPECT().AddRecord(flowExp.elementsListv4, flowExp.templateIDv4).Times(count).Return(nil)
+			} else {
+				mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, flowExp.templateIDv6).Times(count).Return(nil)
+				mockDataSet.EXPECT().AddRecord(flowExp.elementsListv6, flowExp.templateIDv6).Times(count).Return(nil)
+			}
+			mockIPFIXExpProc.EXPECT().SendSet(mockDataSet).Times(count).Return(0, nil)
+			mockDataSet.EXPECT().ResetSet().Times(count)
 
+			err = flowExp.sendFlowRecords()
+			assert.NoError(t, err)
+			assert.Equalf(t, uint64(count), flowExp.numDataSetsSent, "%v data sets should have been sent.", count)
+			assert.Equal(t, flowExp.denyConnStore.GetNumOfConnections(), 0)
+
+			if tt.isRecordActive && flowexporter.IsConnectionDying(conn) {
+				_, recPresent := flowExp.flowRecords.GetFlowRecordFromMap(&connKey)
+				assert.Falsef(t, recPresent, "record should not be in the map")
+			}
 		})
 	}
 }

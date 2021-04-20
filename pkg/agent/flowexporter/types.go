@@ -22,6 +22,7 @@ import (
 type ConnectionKey [5]string
 
 type ConnectionMapCallBack func(key ConnectionKey, conn *Connection) error
+type DenyConnectionMapCallBack func(key ConnectionKey, conn *DenyConnection) error
 type FlowRecordCallBack func(key ConnectionKey, record FlowRecord) error
 
 type Tuple struct {
@@ -54,16 +55,18 @@ type Connection struct {
 	OriginalPackets, OriginalBytes uint64
 	ReversePackets, ReverseBytes   uint64
 	// Fields specific to Antrea
-	SourcePodNamespace            string
-	SourcePodName                 string
-	DestinationPodNamespace       string
-	DestinationPodName            string
-	DestinationServicePortName    string
-	IngressNetworkPolicyName      string
-	IngressNetworkPolicyNamespace string
-	EgressNetworkPolicyName       string
-	EgressNetworkPolicyNamespace  string
-	TCPState                      string
+	SourcePodNamespace             string
+	SourcePodName                  string
+	DestinationPodNamespace        string
+	DestinationPodName             string
+	DestinationServicePortName     string
+	IngressNetworkPolicyName       string
+	IngressNetworkPolicyNamespace  string
+	IngressNetworkPolicyRuleAction uint8
+	EgressNetworkPolicyName        string
+	EgressNetworkPolicyNamespace   string
+	EgressNetworkPolicyRuleAction  uint8
+	TCPState                       string
 }
 
 type FlowRecord struct {
@@ -75,4 +78,24 @@ type FlowRecord struct {
 	IsIPv6             bool
 	LastExportTime     time.Time
 	IsActive           bool
+}
+
+type DenyConnection struct {
+	FlowKey                        Tuple
+	Bytes                          uint64
+	SourcePodNamespace             string
+	SourcePodName                  string
+	SourceNodeName                 string
+	DestinationPodNamespace        string
+	DestinationPodName             string
+	DestinationNodeName            string
+	DestinationServicePortName     string
+	IngressNetworkPolicyName       string
+	IngressNetworkPolicyNamespace  string
+	IngressNetworkPolicyRuleAction string
+	EgressNetworkPolicyName        string
+	EgressNetworkPolicyNamespace   string
+	EgressNetworkPolicyRuleAction  string
+	IsIPv6                         bool
+	TimeSeen                       time.Time
 }

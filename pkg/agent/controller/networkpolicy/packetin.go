@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/contiv/libOpenflow/openflow13"
 	"github.com/contiv/libOpenflow/protocol"
@@ -29,8 +30,11 @@ import (
 	"k8s.io/klog"
 
 	"github.com/vmware-tanzu/antrea/pkg/agent/config"
+	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter"
+	"github.com/vmware-tanzu/antrea/pkg/agent/interfacestore"
 	"github.com/vmware-tanzu/antrea/pkg/agent/openflow"
 	binding "github.com/vmware-tanzu/antrea/pkg/ovs/openflow"
+	"github.com/vmware-tanzu/antrea/pkg/util/env"
 	"github.com/vmware-tanzu/antrea/pkg/util/ip"
 	"github.com/vmware-tanzu/antrea/pkg/util/logdir"
 )
@@ -119,7 +123,11 @@ func (c *Controller) HandlePacketIn(pktIn *ofctrl.PacketIn) error {
 			return err
 		}
 	}
-
+	if customReasons&openflow.CustomReasonDeny == openflow.CustomReasonDeny {
+		if err := c.storeDenyConnection(pktIn); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -326,4 +334,121 @@ func (c *Controller) rejectRequest(pktIn *ofctrl.PacketIn) error {
 			icmpData,
 			true)
 	}
+}
+
+func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
+
+	packet, err := binding.ParsePacketIn(pktIn)
+	if err != nil {
+		return fmt.Errorf("error in parsing packetin: %v", err)
+	}
+
+	err = c.addDenyConn(pktIn, packet)
+	if err != nil {
+		return fmt.Errorf("error when adding deny connection: %v", err)
+	}
+
+	return nil
+}
+
+func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet) error {
+	denyConn := flowexporter.DenyConnection{}
+
+	// Get 5-tuple information
+	flowKey := flowexporter.Tuple{
+		SourcePort:      packet.SourcePort,
+		DestinationPort: packet.DestinationPort,
+		Protocol:        packet.IPProto,
+	}
+	if packet.IsIPv6 {
+		flowKey.SourceAddress = packet.SourceIP.To16()
+		flowKey.DestinationAddress = packet.DestinationIP.To16()
+		denyConn.IsIPv6 = true
+	} else {
+		flowKey.SourceAddress = packet.SourceIP.To4()
+		flowKey.DestinationAddress = packet.DestinationIP.To4()
+	}
+	denyConn.FlowKey = flowKey
+
+	// No need to obtain connection info again if it already exists in denyConnectionStore.
+	if c.denyConnectionStore.ContainsConnection(flowKey) {
+		denyConn.Bytes = uint64(packet.IPLength)
+		c.denyConnectionStore.AddOrUpdateConnection(&denyConn)
+		return nil
+	}
+
+	// Map local source IP and destination IP
+	sIface, srcFound := c.ifaceStore.GetInterfaceByIP(flowKey.SourceAddress.String())
+	dIface, dstFound := c.ifaceStore.GetInterfaceByIP(flowKey.DestinationAddress.String())
+	node, _ := env.GetNodeName()
+	if !srcFound && !dstFound {
+		klog.Warningf("Cannot map any of the IP %s or %s to a local Pod", flowKey.SourceAddress.String(), flowKey.DestinationAddress.String())
+	}
+	if srcFound && sIface.Type == interfacestore.ContainerInterface {
+		denyConn.SourcePodName = sIface.ContainerInterfaceConfig.PodName
+		denyConn.SourcePodNamespace = sIface.ContainerInterfaceConfig.PodNamespace
+		denyConn.SourceNodeName = node
+	}
+	if dstFound && dIface.Type == interfacestore.ContainerInterface {
+		denyConn.DestinationPodName = dIface.ContainerInterfaceConfig.PodName
+		denyConn.DestinationPodNamespace = dIface.ContainerInterfaceConfig.PodNamespace
+		denyConn.DestinationNodeName = node
+	}
+
+	matchers := pktIn.GetMatches()
+	var match *ofctrl.MatchField
+	// Get table ID
+	tableID := binding.TableIDType(pktIn.TableId)
+	// Get disposition Allow, Drop or Reject
+	match = getMatchRegField(matchers, uint32(openflow.DispositionMarkReg))
+	id, err := getInfoInReg(match, openflow.APDispositionMarkRange.ToNXRange())
+	if err != nil {
+		return fmt.Errorf("error when getting disposition from reg: %v", err)
+	}
+	disposition := openflow.DispositionToString[id]
+
+	// For K8s network policy drop action, we cannot get name/namespace.
+	if tableID == openflow.IngressDefaultTable {
+		denyConn.IngressNetworkPolicyRuleAction = disposition
+	} else if tableID == openflow.EgressDefaultTable {
+		denyConn.EgressNetworkPolicyRuleAction = disposition
+	} else { // Get name and namespace for Antrea Network Policy or Antrea Cluster Network Policy
+		// Set match to corresponding ingress/egress reg according to disposition
+		match = getMatch(matchers, tableID, id)
+		ruleID, err := getInfoInReg(match, nil)
+		if err != nil {
+			return fmt.Errorf("error when obtaining rule id from reg: %v", err)
+		}
+		policy := c.GetNetworkPolicyByRuleFlowID(ruleID)
+
+		if policy == nil {
+			// Default drop by k8s network policy
+			klog.V(2).Infof("Cannot find NetworkPolicy that has ruleID %v", ruleID)
+		} else {
+			if tableID == openflow.AntreaPolicyIngressRuleTable {
+				denyConn.IngressNetworkPolicyName = policy.Name
+				denyConn.IngressNetworkPolicyNamespace = policy.Namespace
+				denyConn.IngressNetworkPolicyRuleAction = disposition
+			} else if tableID == openflow.AntreaPolicyEgressRuleTable {
+				denyConn.EgressNetworkPolicyName = policy.Name
+				denyConn.EgressNetworkPolicyNamespace = policy.Namespace
+				denyConn.EgressNetworkPolicyRuleAction = disposition
+			}
+		}
+	}
+	// resolve destination Service information
+	if c.proxier != nil {
+		protocolStr := ip.IPProtocolNumberToString(denyConn.FlowKey.Protocol, "UnknownProtocol")
+		serviceStr := fmt.Sprintf("%s:%d/%s", denyConn.FlowKey.DestinationAddress, denyConn.FlowKey.DestinationPort, protocolStr)
+		servicePortName, exists := c.proxier.GetServiceByIP(serviceStr)
+		if !exists {
+			klog.Warningf("Could not retrieve the Service info from antrea-agent-proxier for the serviceStr: %s", serviceStr)
+		} else {
+			denyConn.DestinationServicePortName = servicePortName.String()
+		}
+	}
+	denyConn.TimeSeen = time.Now()
+	denyConn.Bytes = uint64(packet.IPLength)
+	c.denyConnectionStore.AddOrUpdateConnection(&denyConn)
+	return nil
 }
