@@ -177,6 +177,13 @@ func TestConnTrackOvsAppCtl_DumpFlows(t *testing.T) {
 		DestinationPodNamespace: "",
 		DestinationPodName:      "",
 		TCPState:                "ESTABLISHED",
+		FlowKey: flowexporter.Tuple{
+			SourceAddress:      net.ParseIP("100.10.0.105"),
+			DestinationAddress: net.ParseIP("100.10.0.106"),
+			Protocol:           6,
+			SourcePort:         uint16(41284),
+			DestinationPort:    uint16(6443),
+		},
 	}
 	mockOVSCtlClient.EXPECT().RunAppctlCmd("dpctl/dump-conntrack", false, "-m", "-s").Return(ovsctlCmdOutput, nil)
 
@@ -228,6 +235,13 @@ func TestNetLinkFlowToAntreaConnection(t *testing.T) {
 		Timestamp: conntrack.Timestamp{Start: time.Date(2020, 7, 25, 8, 40, 8, 959000000, time.UTC)},
 	}
 	tuple, _ := makeTuple(&conntrackFlowTuple.IP.SourceAddress, &conntrackFlowTuple.IP.DestinationAddress, conntrackFlowTuple.Proto.Protocol, conntrackFlowTuple.Proto.SourcePort, conntrackFlowTuple.Proto.DestinationPort)
+	flowKey := flowexporter.Tuple{
+		SourceAddress:      conntrackFlowTuple.IP.SourceAddress,
+		DestinationAddress: conntrackFlowTuple.IP.SourceAddress,
+		Protocol:           conntrackFlowTuple.Proto.Protocol,
+		SourcePort:         conntrackFlowTuple.Proto.SourcePort,
+		DestinationPort:    conntrackFlowTuple.Proto.SourcePort,
+	}
 	expectedAntreaFlow := &flowexporter.Connection{
 		Timeout:                 netlinkFlow.Timeout,
 		StartTime:               netlinkFlow.Timestamp.Start,
@@ -246,6 +260,7 @@ func TestNetLinkFlowToAntreaConnection(t *testing.T) {
 		DestinationPodNamespace: "",
 		DestinationPodName:      "",
 		TCPState:                "",
+		FlowKey:                 flowKey,
 	}
 
 	antreaFlow := NetlinkFlowToAntreaConnection(netlinkFlow)
@@ -282,6 +297,7 @@ func TestNetLinkFlowToAntreaConnection(t *testing.T) {
 		DestinationPodNamespace: "",
 		DestinationPodName:      "",
 		TCPState:                "",
+		FlowKey:                 flowKey,
 	}
 
 	antreaFlow = NetlinkFlowToAntreaConnection(netlinkFlow)

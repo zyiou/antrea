@@ -265,6 +265,15 @@ func flowStringToAntreaConnection(flow string, zoneFilter uint16) (*flowexporter
 	if !inZone {
 		return nil, nil
 	}
+
+	flowKey := flowexporter.Tuple{
+		SourceAddress:      conn.TupleOrig.SourceAddress,
+		DestinationAddress: conn.TupleReply.SourceAddress,
+		Protocol:           conn.TupleOrig.Protocol,
+		SourcePort:         conn.TupleOrig.SourcePort,
+		DestinationPort:    conn.TupleReply.SourcePort,
+	}
+	conn.FlowKey = flowKey
 	// Add current time as stop time.
 	conn.StopTime = time.Now()
 	conn.IsPresent = true
