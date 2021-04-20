@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vmware/go-ipfix/pkg/registry"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/metrics/legacyregistry"
@@ -257,11 +258,13 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 			npQuerier.EXPECT().GetNetworkPolicyByRuleFlowID(ingressOfID).Return(&np1)
 			expConn.IngressNetworkPolicyName = np1.Name
 			expConn.IngressNetworkPolicyNamespace = np1.Namespace
+			expConn.IngressNetworkPolicyRuleAction = registry.NetworkPolicyRuleActionAllow
 
 			egressOfID := binary.LittleEndian.Uint32(test.flow.Labels[4:8])
 			npQuerier.EXPECT().GetNetworkPolicyByRuleFlowID(egressOfID).Return(&np2)
 			expConn.EgressNetworkPolicyName = np2.Name
 			expConn.EgressNetworkPolicyNamespace = np2.Namespace
+			expConn.EgressNetworkPolicyRuleAction = registry.NetworkPolicyRuleActionAllow
 		}
 		connStore.addOrUpdateConn(&test.flow)
 		actualConn, ok := connStore.GetConnByKey(flowTuple)

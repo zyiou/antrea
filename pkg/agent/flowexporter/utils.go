@@ -16,6 +16,8 @@ package flowexporter
 
 import (
 	"strconv"
+
+	"github.com/vmware/go-ipfix/pkg/registry"
 )
 
 const (
@@ -47,4 +49,28 @@ func IsConnectionDying(conn *Connection) bool {
 		return true
 	}
 	return false
+}
+
+// RuleActionToUint8 converts network policy rule action to uint8.
+func RuleActionToUint8(action string) uint8 {
+	switch action {
+	case "Allow":
+		return registry.NetworkPolicyRuleActionAllow
+	case "Drop":
+		return registry.NetworkPolicyRuleActionDrop
+	case "Reject":
+		return registry.NetworkPolicyRuleActionReject
+	default:
+		return registry.NetworkPolicyRuleActionNoAction
+	}
+}
+
+// GetConnKey returns connection key from tuple.
+func GetConnKey(flowKey Tuple) ConnectionKey {
+	return ConnectionKey{flowKey.SourceAddress.String(),
+		strconv.FormatUint(uint64(flowKey.SourcePort), 10),
+		flowKey.DestinationAddress.String(),
+		strconv.FormatUint(uint64(flowKey.DestinationPort), 10),
+		strconv.FormatUint(uint64(flowKey.Protocol), 10),
+	}
 }

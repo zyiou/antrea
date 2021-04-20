@@ -30,6 +30,7 @@ import (
 	"antrea.io/antrea/pkg/agent/controller/noderoute"
 	"antrea.io/antrea/pkg/agent/flowexporter"
 	"antrea.io/antrea/pkg/agent/flowexporter/connections"
+	"antrea.io/antrea/pkg/agent/flowexporter/denyconnections"
 	"antrea.io/antrea/pkg/agent/flowexporter/flowrecords"
 	"antrea.io/antrea/pkg/agent/openflow"
 	"antrea.io/antrea/pkg/ipfix"
@@ -69,8 +70,10 @@ var (
 		"destinationServicePortName",
 		"ingressNetworkPolicyName",
 		"ingressNetworkPolicyNamespace",
+		"ingressNetworkPolicyRuleAction",
 		"egressNetworkPolicyName",
 		"egressNetworkPolicyNamespace",
+		"egressNetworkPolicyRuleAction",
 		"tcpState",
 		"flowType",
 	}
@@ -81,6 +84,7 @@ var (
 type flowExporter struct {
 	connStore                 connections.ConnectionStore
 	flowRecords               *flowrecords.FlowRecords
+	denyConnStore             denyconnections.DenyConnectionStore
 	process                   ipfix.IPFIXExportingProcess
 	elementsListv4            []*ipfixentities.InfoElementWithValue
 	elementsListv6            []*ipfixentities.InfoElementWithValue
@@ -125,7 +129,7 @@ func prepareExporterInputArgs(collectorAddr, collectorProto string) (exporter.Ex
 	return expInput, nil
 }
 
-func NewFlowExporter(connStore connections.ConnectionStore, records *flowrecords.FlowRecords,
+func NewFlowExporter(connStore connections.ConnectionStore, records *flowrecords.FlowRecords, denyConnStore denyconnections.DenyConnectionStore,
 	collectorAddr string, collectorProto string, activeFlowTimeout time.Duration, idleFlowTimeout time.Duration,
 	enableTLSToFlowAggregator bool, v4Enabled bool, v6Enabled bool, k8sClient kubernetes.Interface,
 	nodeRouteController *noderoute.Controller, isNetworkPolicyOnly bool) (*flowExporter, error) {
@@ -142,6 +146,7 @@ func NewFlowExporter(connStore connections.ConnectionStore, records *flowrecords
 	return &flowExporter{
 		connStore:                 connStore,
 		flowRecords:               records,
+		denyConnStore:             denyConnStore,
 		registry:                  registry,
 		v4Enabled:                 v4Enabled,
 		v6Enabled:                 v6Enabled,
@@ -319,10 +324,27 @@ func (exp *flowExporter) sendFlowRecords() error {
 		}
 		return nil
 	}
-
 	err := exp.flowRecords.ForAllFlowRecordsDo(updateOrSendFlowRecord)
 	if err != nil {
 		return fmt.Errorf("error when iterating flow records: %v", err)
+	}
+
+	exportDenyConn := func(connKey flowexporter.ConnectionKey, conn *flowexporter.DenyConnection) error {
+		if time.Since(conn.TimeSeen) >= exp.idleFlowTimeout {
+			if err := exp.addDenyConnToSet(conn); err != nil {
+				return err
+			}
+			if _, err := exp.sendDataSet(); err != nil {
+				return err
+			}
+			exp.numDataSetsSent = exp.numDataSetsSent + 1
+			exp.denyConnStore.DeleteConnWithoutLock(connKey)
+		}
+		return nil
+	}
+	err = exp.denyConnStore.ForAllConnectionsDo(exportDenyConn)
+	if err != nil {
+		return fmt.Errorf("error when iterating deny connections: %v", err)
 	}
 	return nil
 }
@@ -505,10 +527,14 @@ func (exp *flowExporter) addRecordToSet(record flowexporter.FlowRecord) error {
 			ie.Value = record.Conn.IngressNetworkPolicyName
 		case "ingressNetworkPolicyNamespace":
 			ie.Value = record.Conn.IngressNetworkPolicyNamespace
+		case "ingressNetworkPolicyRuleAction":
+			ie.Value = record.Conn.IngressNetworkPolicyRuleAction
 		case "egressNetworkPolicyName":
 			ie.Value = record.Conn.EgressNetworkPolicyName
 		case "egressNetworkPolicyNamespace":
 			ie.Value = record.Conn.EgressNetworkPolicyNamespace
+		case "egressNetworkPolicyRuleAction":
+			ie.Value = record.Conn.EgressNetworkPolicyRuleAction
 		case "tcpState":
 			ie.Value = record.Conn.TCPState
 		case "flowType":
@@ -520,6 +546,104 @@ func (exp *flowExporter) addRecordToSet(record flowexporter.FlowRecord) error {
 	if record.IsIPv6 {
 		templateID = exp.templateIDv6
 	}
+	err := exp.ipfixSet.AddRecord(eL, templateID)
+	if err != nil {
+		return fmt.Errorf("error in adding record to data set: %v", err)
+	}
+	return nil
+}
+
+func (exp *flowExporter) addDenyConnToSet(conn *flowexporter.DenyConnection) error {
+	exp.ipfixSet.ResetSet()
+	templateID := exp.templateIDv4
+	if conn.IsIPv6 {
+		templateID = exp.templateIDv6
+	}
+	if err := exp.ipfixSet.PrepareSet(ipfixentities.Data, templateID); err != nil {
+		return err
+	}
+	// Iterate over all infoElements in the list
+	eL := exp.elementsListv4
+	if conn.IsIPv6 {
+		eL = exp.elementsListv6
+	}
+	for _, ie := range eL {
+		switch ieName := ie.Element.Name; ieName {
+		case "flowStartSeconds":
+			ie.Value = uint32(conn.TimeSeen.Unix())
+		case "flowEndSeconds":
+			ie.Value = uint32(conn.TimeSeen.Unix())
+		case "flowEndReason":
+			ie.Value = ipfixregistry.EndOfFlowReason
+		case "sourceIPv4Address":
+			ie.Value = conn.FlowKey.SourceAddress
+		case "destinationIPv4Address":
+			ie.Value = conn.FlowKey.DestinationAddress
+		case "sourceIPv6Address":
+			ie.Value = conn.FlowKey.SourceAddress
+		case "destinationIPv6Address":
+			ie.Value = conn.FlowKey.DestinationAddress
+		case "sourceTransportPort":
+			ie.Value = conn.FlowKey.SourcePort
+		case "destinationTransportPort":
+			ie.Value = conn.FlowKey.DestinationPort
+		case "protocolIdentifier":
+			ie.Value = conn.FlowKey.Protocol
+		case "packetTotalCount":
+			ie.Value = uint64(0)
+		case "octetTotalCount":
+			ie.Value = conn.Bytes
+		case "packetDeltaCount":
+			ie.Value = uint64(0)
+		case "octetDeltaCount":
+			ie.Value = conn.Bytes
+		case "reversePacketTotalCount":
+			ie.Value = uint64(0)
+		case "reverseOctetTotalCount":
+			ie.Value = uint64(0)
+		case "reversePacketDeltaCount":
+			ie.Value = uint64(0)
+		case "reverseOctetDeltaCount":
+			ie.Value = uint64(0)
+		case "sourcePodNamespace":
+			ie.Value = conn.SourcePodNamespace
+		case "sourcePodName":
+			ie.Value = conn.SourcePodName
+		case "sourceNodeName":
+			ie.Value = conn.SourceNodeName
+		case "destinationPodNamespace":
+			ie.Value = conn.DestinationPodNamespace
+		case "destinationPodName":
+			ie.Value = conn.DestinationPodName
+		case "destinationNodeName":
+			ie.Value = conn.DestinationNodeName
+		case "destinationClusterIPv4":
+			ie.Value = net.IP{0, 0, 0, 0}
+		case "destinationClusterIPv6":
+			ie.Value = net.ParseIP("::")
+		case "destinationServicePort":
+			ie.Value = uint16(0)
+		case "destinationServicePortName":
+			ie.Value = ""
+		case "ingressNetworkPolicyName":
+			ie.Value = conn.IngressNetworkPolicyName
+		case "ingressNetworkPolicyNamespace":
+			ie.Value = conn.IngressNetworkPolicyNamespace
+		case "ingressNetworkPolicyRuleAction":
+			ie.Value = flowexporter.RuleActionToUint8(conn.IngressNetworkPolicyRuleAction)
+		case "egressNetworkPolicyName":
+			ie.Value = conn.EgressNetworkPolicyName
+		case "egressNetworkPolicyNamespace":
+			ie.Value = conn.EgressNetworkPolicyNamespace
+		case "egressNetworkPolicyRuleAction":
+			ie.Value = flowexporter.RuleActionToUint8(conn.EgressNetworkPolicyRuleAction)
+		case "tcpState":
+			ie.Value = ""
+		case "flowType":
+			ie.Value = exp.inferFlowTypeForDenyConn(conn)
+		}
+	}
+
 	err := exp.ipfixSet.AddRecord(eL, templateID)
 	if err != nil {
 		return fmt.Errorf("error in adding record to data set: %v", err)
@@ -540,9 +664,9 @@ func (exp *flowExporter) findFlowType(record flowexporter.FlowRecord) uint8 {
 	// TODO: support Pod-To-External flows in network policy only mode.
 	if exp.isNetworkPolicyOnly {
 		if record.Conn.SourcePodName == "" || record.Conn.DestinationPodName == "" {
-			return ipfixregistry.InterNode
+			return ipfixregistry.FlowTypeInterNode
 		}
-		return ipfixregistry.IntraNode
+		return ipfixregistry.FlowTypeIntraNode
 	}
 
 	if exp.nodeRouteController == nil {
@@ -552,15 +676,23 @@ func (exp *flowExporter) findFlowType(record flowexporter.FlowRecord) uint8 {
 	if exp.nodeRouteController.IPInPodSubnets(record.Conn.TupleOrig.SourceAddress) {
 		if record.Conn.Mark == openflow.ServiceCTMark || exp.nodeRouteController.IPInPodSubnets(record.Conn.TupleOrig.DestinationAddress) {
 			if record.Conn.SourcePodName == "" || record.Conn.DestinationPodName == "" {
-				return ipfixregistry.InterNode
+				return ipfixregistry.FlowTypeInterNode
 			}
-			return ipfixregistry.IntraNode
+			return ipfixregistry.FlowTypeIntraNode
 		} else {
-			return ipfixregistry.ToExternal
+			return ipfixregistry.FlowTypeToExternal
 		}
 	} else {
 		// We do not support External-To-Pod flows for now.
 		klog.Warningf("Source IP: %s doesn't exist in PodCIDRs", record.Conn.TupleOrig.SourceAddress.String())
 		return 0
+	}
+}
+
+func (exp *flowExporter) inferFlowTypeForDenyConn(conn *flowexporter.DenyConnection) uint8 {
+	if conn.SourcePodName == "" || conn.DestinationPodName == "" {
+		return ipfixregistry.FlowTypeInterNode
+	} else {
+		return ipfixregistry.FlowTypeIntraNode
 	}
 }

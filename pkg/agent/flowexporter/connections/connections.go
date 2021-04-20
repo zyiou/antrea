@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vmware/go-ipfix/pkg/registry"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
@@ -185,6 +186,7 @@ func (cs *connectionStore) addOrUpdateConn(conn *flowexporter.Connection) {
 				} else {
 					conn.IngressNetworkPolicyName = policy.Name
 					conn.IngressNetworkPolicyNamespace = policy.Namespace
+					conn.IngressNetworkPolicyRuleAction = registry.NetworkPolicyRuleActionAllow
 				}
 			}
 			if egressOfID != 0 {
@@ -196,6 +198,7 @@ func (cs *connectionStore) addOrUpdateConn(conn *flowexporter.Connection) {
 				} else {
 					conn.EgressNetworkPolicyName = policy.Name
 					conn.EgressNetworkPolicyNamespace = policy.Namespace
+					conn.EgressNetworkPolicyRuleAction = registry.NetworkPolicyRuleActionAllow
 				}
 			}
 		}
