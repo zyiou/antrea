@@ -32,7 +32,6 @@ import (
 	"antrea.io/antrea/pkg/agent/controller/noderoute"
 	"antrea.io/antrea/pkg/agent/controller/traceflow"
 	"antrea.io/antrea/pkg/agent/flowexporter/connections"
-	"antrea.io/antrea/pkg/agent/flowexporter/denyconnections"
 	"antrea.io/antrea/pkg/agent/flowexporter/exporter"
 	"antrea.io/antrea/pkg/agent/flowexporter/flowrecords"
 	"antrea.io/antrea/pkg/agent/interfacestore"
@@ -195,9 +194,10 @@ func run(o *Options) error {
 	// if AntreaPolicy feature is enabled.
 	statusManagerEnabled := antreaPolicyEnabled
 	loggingEnabled := antreaPolicyEnabled
-	var denyConnectionStore denyconnections.DenyConnectionStore
+
+	var denyConnStore *connections.DenyConnectionStore
 	if features.DefaultFeatureGate.Enabled(features.FlowExporter) {
-		denyConnectionStore = denyconnections.NewDenyConnectionStore()
+		denyConnStore = connections.NewDenyConnectionStore(ifaceStore, proxier)
 	}
 	networkPolicyController, err := networkpolicy.NewNetworkPolicyController(
 		antreaClientProvider,
@@ -208,8 +208,7 @@ func run(o *Options) error {
 		antreaPolicyEnabled,
 		statusManagerEnabled,
 		loggingEnabled,
-		denyConnectionStore,
-		proxier,
+		denyConnStore,
 		asyncRuleDeleteInterval)
 	if err != nil {
 		return fmt.Errorf("error creating new NetworkPolicy controller: %v", err)
@@ -365,7 +364,7 @@ func run(o *Options) error {
 		isNetworkPolicyOnly := networkConfig.TrafficEncapMode.IsNetworkPolicyOnly()
 
 		flowRecords := flowrecords.NewFlowRecords()
-		connStore := connections.NewConnectionStore(
+		conntrackConnStore := connections.NewConntrackConnectionStore(
 			connections.InitializeConnTrackDumper(nodeConfig, serviceCIDRNet, serviceCIDRNetv6, ovsDatapathType, features.DefaultFeatureGate.Enabled(features.AntreaProxy)),
 			flowRecords,
 			ifaceStore,
@@ -374,12 +373,12 @@ func run(o *Options) error {
 			proxier,
 			networkPolicyController,
 			o.pollInterval)
-		go connStore.Run(stopCh)
+		go conntrackConnStore.Run(stopCh)
 
 		flowExporter, err := exporter.NewFlowExporter(
-			connStore,
+			conntrackConnStore,
 			flowRecords,
-			denyConnectionStore,
+			denyConnStore,
 			o.flowCollectorAddr,
 			o.flowCollectorProto,
 			o.activeFlowTimeout,

@@ -15,7 +15,6 @@
 package connections
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
@@ -26,7 +25,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vmware/go-ipfix/pkg/registry"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/component-base/metrics/legacyregistry"
@@ -39,24 +37,8 @@ import (
 	"antrea.io/antrea/pkg/agent/metrics"
 	"antrea.io/antrea/pkg/agent/openflow"
 	proxytest "antrea.io/antrea/pkg/agent/proxy/testing"
-	cpv1beta "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	queriertest "antrea.io/antrea/pkg/querier/testing"
 	k8sproxy "antrea.io/antrea/third_party/proxy"
-)
-
-var (
-	np1 = cpv1beta.NetworkPolicyReference{
-		Type:      cpv1beta.K8sNetworkPolicy,
-		Namespace: "foo",
-		Name:      "bar",
-		UID:       "uid1",
-	}
-	np2 = cpv1beta.NetworkPolicyReference{
-		Type:      cpv1beta.K8sNetworkPolicy,
-		Namespace: "foo",
-		Name:      "baz",
-		UID:       "uid2",
-	}
 )
 
 const testPollInterval = 0 // Not used in these tests, hence 0.
@@ -79,7 +61,7 @@ func makeTuple(srcIP *net.IP, dstIP *net.IP, protoID uint8, srcPort uint16, dstP
 	return tuple, revTuple
 }
 
-func TestConnectionStore_addAndUpdateConn(t *testing.T) {
+func TestConnectionStore_AddAndUpdateConn_ConntrackConnStore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	metrics.InitializeConnectionMetrics()
@@ -97,6 +79,7 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		TupleOrig:       tuple1,
 		TupleReply:      revTuple1,
 		IsPresent:       true,
+		FlowKey:         tuple1,
 	}
 	// Flow-2, which is not in connectionStore
 	tuple2, revTuple2 := makeTuple(&net.IP{5, 6, 7, 8}, &net.IP{8, 7, 6, 5}, 6, 60001, 200)
@@ -110,6 +93,7 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		TupleOrig:       tuple2,
 		TupleReply:      revTuple2,
 		IsPresent:       true,
+		FlowKey:         tuple2,
 	}
 	// Flow-3 , which is already in connectionStore
 	tuple3, revTuple3 := makeTuple(&net.IP{10, 10, 10, 10}, &net.IP{4, 3, 2, 1}, 6, 60000, 100)
@@ -124,6 +108,7 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		TupleReply:      revTuple3,
 		TCPState:        "TIME_WAIT",
 		IsPresent:       true,
+		FlowKey:         tuple3,
 	}
 	// To test service name mapping.
 	tuple4, revTuple4 := makeTuple(&net.IP{10, 10, 10, 10}, &net.IP{20, 20, 20, 20}, 6, 5000, 80)
@@ -132,14 +117,7 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		TupleReply: revTuple4,
 		Mark:       openflow.ServiceCTMark,
 		IsPresent:  true,
-	}
-	// To test NetworkPolicy mapping.
-	tuple5, revTuple5 := makeTuple(&net.IP{30, 30, 30, 30}, &net.IP{20, 20, 20, 20}, 6, 5000, 80)
-	testFlow5 := flowexporter.Connection{
-		TupleOrig:  tuple5,
-		TupleReply: revTuple5,
-		Labels:     []byte{0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x2},
-		IsPresent:  true,
+		FlowKey:    tuple4,
 	}
 	// Create copy of old conntrack flow for testing purposes.
 	// These two flows are already in connection store.
@@ -158,6 +136,7 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		DestinationPodName:      "",
 		IsPresent:               true,
 		TCPState:                "",
+		FlowKey:                 tuple1,
 	}
 	oldTestFlow3 := flowexporter.Connection{
 		StartTime:               testFlow3.StartTime,
@@ -174,6 +153,7 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		DestinationPodName:      "",
 		IsPresent:               true,
 		TCPState:                "TIME_WAIT",
+		FlowKey:                 tuple3,
 	}
 	podConfigFlow2 := &interfacestore.ContainerInterfaceConfig{
 		ContainerID:  "2",
@@ -195,16 +175,16 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 	}
 	// Mock interface store with one of the couple of IPs correspond to Pods
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
-	mockConnDumper := connectionstest.NewMockConnTrackDumper(ctrl)
 	mockProxier := proxytest.NewMockProxier(ctrl)
+	mockConnDumper := connectionstest.NewMockConnTrackDumper(ctrl)
 	npQuerier := queriertest.NewMockAgentNetworkPolicyInfoQuerier(ctrl)
-	connStore := NewConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), mockIfaceStore, true, false, mockProxier, npQuerier, testPollInterval)
+	conntrackConnStore := NewConntrackConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), mockIfaceStore, true, false, mockProxier, npQuerier, testPollInterval)
 
 	// Add flow1conn and flow3conn to the Connection map
 	testFlow1Tuple := flowexporter.NewConnectionKey(&testFlow1)
-	connStore.connections[testFlow1Tuple] = &oldTestFlow1
+	conntrackConnStore.connections[testFlow1Tuple] = &oldTestFlow1
 	testFlow3Tuple := flowexporter.NewConnectionKey(&testFlow3)
-	connStore.connections[testFlow3Tuple] = &oldTestFlow3
+	conntrackConnStore.connections[testFlow3Tuple] = &oldTestFlow3
 	// For testing purposes, increment the metric
 	metrics.TotalAntreaConnectionsInConnTrackTable.Inc()
 	metrics.TotalAntreaConnectionsInConnTrackTable.Inc()
@@ -216,7 +196,6 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 		{testFlow2}, // To test add part of function.
 		{testFlow3}, // To test update part of function for dying connection.
 		{testFlow4}, // To test service name mapping.
-		{testFlow5}, // To test NetworkPolicy mapping.
 	}
 	for i, test := range addOrUpdateConnTests {
 		flowTuple := flowexporter.NewConnectionKey(&test.flow)
@@ -249,29 +228,65 @@ func TestConnectionStore_addAndUpdateConn(t *testing.T) {
 			serviceStr := fmt.Sprintf("%s:%d/%s", expConn.TupleOrig.DestinationAddress.String(), expConn.TupleOrig.DestinationPort, protocol)
 			mockProxier.EXPECT().GetServiceByIP(serviceStr).Return(servicePortName, true)
 			expConn.DestinationServicePortName = servicePortName.String()
-		case 4:
-			// Tests NetworkPolicy mapping.
-			mockIfaceStore.EXPECT().GetInterfaceByIP(expConn.TupleOrig.SourceAddress.String()).Return(nil, false)
-			mockIfaceStore.EXPECT().GetInterfaceByIP(expConn.TupleReply.SourceAddress.String()).Return(nil, false)
-
-			ingressOfID := binary.LittleEndian.Uint32(test.flow.Labels[:4])
-			npQuerier.EXPECT().GetNetworkPolicyByRuleFlowID(ingressOfID).Return(&np1)
-			expConn.IngressNetworkPolicyName = np1.Name
-			expConn.IngressNetworkPolicyNamespace = np1.Namespace
-			expConn.IngressNetworkPolicyRuleAction = registry.NetworkPolicyRuleActionAllow
-
-			egressOfID := binary.LittleEndian.Uint32(test.flow.Labels[4:8])
-			npQuerier.EXPECT().GetNetworkPolicyByRuleFlowID(egressOfID).Return(&np2)
-			expConn.EgressNetworkPolicyName = np2.Name
-			expConn.EgressNetworkPolicyNamespace = np2.Namespace
-			expConn.EgressNetworkPolicyRuleAction = registry.NetworkPolicyRuleActionAllow
 		}
-		connStore.addOrUpdateConn(&test.flow)
-		actualConn, ok := connStore.GetConnByKey(flowTuple)
+		conntrackConnStore.AddOrUpdateConn(&test.flow)
+		actualConn, ok := conntrackConnStore.GetConnByKey(flowTuple)
 		assert.Equal(t, ok, true, "connection should be there in connection store")
 		assert.Equal(t, expConn, *actualConn, "Connections should be equal")
-		checkAntreaConnectionMetrics(t, len(connStore.connections))
+		checkAntreaConnectionMetrics(t, len(conntrackConnStore.connections))
 	}
+}
+
+func TestConnectionStore_AddAndUpdateConn_DenyConnStore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	// Create two flows for testing adding and updating of same connection.
+	refTime := time.Now()
+	tuple, _ := makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
+	servicePortName := k8sproxy.ServicePortName{
+		NamespacedName: types.NamespacedName{
+			Namespace: "serviceNS1",
+			Name:      "service1",
+		},
+		Port:     "255",
+		Protocol: v1.ProtocolTCP,
+	}
+	// flow-1 for testing adding
+	testFlow1 := flowexporter.Connection{
+		TimeSeen: refTime.Add(-(time.Second * 20)),
+		FlowKey:  tuple,
+		IsIPv6:   false,
+		Bytes:    uint64(60),
+	}
+	// flow-2 for testing updating
+	testFlow2 := flowexporter.Connection{
+		TimeSeen: refTime.Add(-(time.Second * 10)),
+		FlowKey:  tuple,
+		IsIPv6:   false,
+		Bytes:    uint64(60),
+	}
+	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
+	mockProxier := proxytest.NewMockProxier(ctrl)
+	protocol, _ := lookupServiceProtocol(tuple.Protocol)
+	serviceStr := fmt.Sprintf("%s:%d/%s", tuple.DestinationAddress.String(), tuple.DestinationPort, protocol)
+	mockProxier.EXPECT().GetServiceByIP(serviceStr).Return(servicePortName, true)
+	mockIfaceStore.EXPECT().GetInterfaceByIP(tuple.SourceAddress.String()).Return(nil, false)
+	mockIfaceStore.EXPECT().GetInterfaceByIP(tuple.DestinationAddress.String()).Return(nil, false)
+
+	denyConnStore := NewDenyConnectionStore(mockIfaceStore, mockProxier)
+
+	denyConnStore.AddOrUpdateConn(&testFlow1)
+	expConn := testFlow1
+	expConn.DestinationServicePortName = servicePortName.String()
+	actualConn, ok := denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow1))
+	assert.Equal(t, ok, true, "deny connection should be there in deny connection store")
+	assert.Equal(t, expConn, *actualConn, "deny connections should be equal")
+
+	denyConnStore.AddOrUpdateConn(&testFlow2)
+	expConn.Bytes = uint64(120)
+	actualConn, ok = denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow1))
+	assert.Equal(t, ok, true, "deny connection should be there in deny connection store")
+	assert.Equal(t, expConn, *actualConn, "deny connections should be equal")
 }
 
 func TestConnectionStore_ForAllConnectionsDo(t *testing.T) {
@@ -313,8 +328,7 @@ func TestConnectionStore_ForAllConnectionsDo(t *testing.T) {
 	}
 	// Create connectionStore
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
-	mockConnDumper := connectionstest.NewMockConnTrackDumper(ctrl)
-	connStore := NewConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), mockIfaceStore, true, false, nil, nil, testPollInterval)
+	connStore := NewConnectionStore(mockIfaceStore, nil, false)
 	// Add flows to the Connection store
 	for i, flow := range testFlows {
 		connStore.connections[*testFlowKeys[i]] = flow
@@ -355,6 +369,7 @@ func TestConnectionStore_DeleteConnectionByKey(t *testing.T) {
 		TupleOrig:       tuple1,
 		TupleReply:      revTuple1,
 		IsPresent:       true,
+		FlowKey:         tuple1,
 	}
 	// Flow-2, which is not in connectionStore
 	tuple2, revTuple2 := makeTuple(&net.IP{5, 6, 7, 8}, &net.IP{8, 7, 6, 5}, 6, 60001, 200)
@@ -368,6 +383,7 @@ func TestConnectionStore_DeleteConnectionByKey(t *testing.T) {
 		TupleOrig:       tuple2,
 		TupleReply:      revTuple2,
 		IsPresent:       true,
+		FlowKey:         tuple2,
 	}
 	for i, flow := range testFlows {
 		connKey := flowexporter.NewConnectionKey(flow)
@@ -377,15 +393,14 @@ func TestConnectionStore_DeleteConnectionByKey(t *testing.T) {
 	metrics.TotalAntreaConnectionsInConnTrackTable.Set(float64(len(testFlows)))
 	// Create connectionStore
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
-	mockConnDumper := connectionstest.NewMockConnTrackDumper(ctrl)
-	connStore := NewConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), mockIfaceStore, true, false, nil, nil, testPollInterval)
+	connStore := NewConnectionStore(mockIfaceStore, nil, false)
 	// Add flows to the connection store.
 	for i, flow := range testFlows {
 		connStore.connections[*testFlowKeys[i]] = flow
 	}
 	// Delete the connections in connection store.
 	for i := 0; i < len(testFlows); i++ {
-		err := connStore.deleteConnectionByKeyWithoutLock(*testFlowKeys[i])
+		err := connStore.DeleteConnWithoutLock(*testFlowKeys[i])
 		assert.Nil(t, err, "DeleteConnectionByKey should return nil")
 		_, exists := connStore.GetConnByKey(*testFlowKeys[i])
 		assert.Equal(t, exists, false, "connection should be deleted in connection store")
@@ -402,13 +417,13 @@ func TestConnectionStore_MetricSettingInPoll(t *testing.T) {
 	// Create connectionStore
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
 	mockConnDumper := connectionstest.NewMockConnTrackDumper(ctrl)
-	connStore := NewConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), mockIfaceStore, true, false, nil, nil, testPollInterval)
+	conntrackConnStore := NewConntrackConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), mockIfaceStore, true, false, nil, nil, testPollInterval)
 	// Hard-coded conntrack occupancy metrics for test
 	TotalConnections := 0
 	MaxConnections := 300000
 	mockConnDumper.EXPECT().DumpFlows(uint16(openflow.CtZone)).Return(testFlows, TotalConnections, nil)
 	mockConnDumper.EXPECT().GetMaxConnections().Return(MaxConnections, nil)
-	connsLens, err := connStore.Poll()
+	connsLens, err := conntrackConnStore.Poll()
 	require.Nil(t, err, fmt.Sprintf("Failed to add connections to connection store: %v", err))
 	assert.Equal(t, len(connsLens), 1, "length of connsLens is expected to be 1")
 	assert.Equal(t, connsLens[0], len(testFlows), "expected connections should be equal to number of testFlows")

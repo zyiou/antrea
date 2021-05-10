@@ -517,9 +517,9 @@ func checkRecordsForDenyFlows(t *testing.T, data *TestData, trafficInfo traffic,
 		cmdStr1 = fmt.Sprintf("iperf3 -6 -c %s -n 1", trafficInfo.dstIP1)
 		cmdStr2 = fmt.Sprintf("iperf3 -6 -c %s -n 1", trafficInfo.dstIP2)
 	}
-	_, _, err := data.runCommandFromPod(testNamespace, trafficInfo.srcPodName1, "", []string{"timeout", "5", "bash", "-c", cmdStr1})
+	_, _, err := data.runCommandFromPod(testNamespace, trafficInfo.srcPodName1, "", []string{"timeout", "2", "bash", "-c", cmdStr1})
 	assert.Error(t, err)
-	_, _, err = data.runCommandFromPod(testNamespace, trafficInfo.srcPodName2, "", []string{"timeout", "5", "bash", "-c", cmdStr2})
+	_, _, err = data.runCommandFromPod(testNamespace, trafficInfo.srcPodName2, "", []string{"timeout", "2", "bash", "-c", cmdStr2})
 	assert.Error(t, err)
 
 	err = wait.Poll(250*time.Millisecond, collectorCheckTimeout, func() (bool, error) {

@@ -134,6 +134,13 @@ func NetlinkFlowToAntreaConnection(conn *conntrack.Flow) *flowexporter.Connectio
 		SourcePort:         conn.TupleReply.Proto.SourcePort,
 		DestinationPort:    conn.TupleReply.Proto.DestinationPort,
 	}
+	flowKey := flowexporter.Tuple{
+		SourceAddress:      tupleOrig.SourceAddress,
+		DestinationAddress: tupleReply.SourceAddress,
+		Protocol:           tupleOrig.Protocol,
+		SourcePort:         tupleOrig.SourcePort,
+		DestinationPort:    tupleReply.SourcePort,
+	}
 	// Assign all the applicable fields
 	newConn := flowexporter.Connection{
 		ID:                      conn.ID,
@@ -156,6 +163,7 @@ func NetlinkFlowToAntreaConnection(conn *conntrack.Flow) *flowexporter.Connectio
 		DestinationPodNamespace: "",
 		DestinationPodName:      "",
 		TCPState:                "",
+		FlowKey:                 flowKey,
 	}
 	if conn.ProtoInfo.TCP != nil {
 		newConn.TCPState = stateToString(conn.ProtoInfo.TCP.State)

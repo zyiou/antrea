@@ -26,8 +26,8 @@ import (
 	ipfixregistry "github.com/vmware/go-ipfix/pkg/registry"
 
 	"antrea.io/antrea/pkg/agent/flowexporter"
+	"antrea.io/antrea/pkg/agent/flowexporter/connections"
 	connectionstest "antrea.io/antrea/pkg/agent/flowexporter/connections/testing"
-	"antrea.io/antrea/pkg/agent/flowexporter/denyconnections"
 	"antrea.io/antrea/pkg/agent/flowexporter/flowrecords"
 	ipfixtest "antrea.io/antrea/pkg/ipfix/testing"
 )
@@ -254,8 +254,8 @@ func getConnection(isIPv6 bool, isPresent bool, statusFlag uint32, protoID uint8
 	if !isIPv6 {
 		tuple, revTuple = makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
 	} else {
-		srcIP := net.IP([]byte{0x20, 0x1, 0x0, 0x0, 0x32, 0x38, 0xdf, 0xe1, 0x0, 0x63, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xfb})
-		dstIP := net.IP([]byte{0x20, 0x1, 0x0, 0x0, 0x32, 0x38, 0xdf, 0xe1, 0x0, 0x63, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xfc})
+		srcIP := net.ParseIP("2001:0:3238:dfe1:63::fefb")
+		dstIP := net.ParseIP("2001:0:3238:dfe1:63::fefc")
 		tuple, revTuple = makeTuple(&srcIP, &dstIP, protoID, 65280, 255)
 	}
 	conn := &flowexporter.Connection{
@@ -279,20 +279,21 @@ func getConnection(isIPv6 bool, isPresent bool, statusFlag uint32, protoID uint8
 		EgressNetworkPolicyNamespace:  "np-ns",
 		DestinationServicePortName:    "service",
 		TCPState:                      tcpState,
+		FlowKey:                       tuple,
 	}
 	return conn
 }
 
-func getDenyConnection(isIPv6 bool) *flowexporter.DenyConnection {
+func getDenyConnection(isIPv6 bool) *flowexporter.Connection {
 	var tuple, _ flowexporter.Tuple
 	if !isIPv6 {
 		tuple, _ = makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
 	} else {
-		srcIP := net.IP([]byte{0x20, 0x1, 0x0, 0x0, 0x32, 0x38, 0xdf, 0xe1, 0x0, 0x63, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xfb})
-		dstIP := net.IP([]byte{0x20, 0x1, 0x0, 0x0, 0x32, 0x38, 0xdf, 0xe1, 0x0, 0x63, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xfc})
+		srcIP := net.ParseIP("2001:0:3238:dfe1:63::fefb")
+		dstIP := net.ParseIP("2001:0:3238:dfe1:63::fefc")
 		tuple, _ = makeTuple(&srcIP, &dstIP, 6, 65280, 255)
 	}
-	return &flowexporter.DenyConnection{
+	return &flowexporter.Connection{
 		FlowKey:  tuple,
 		IsIPv6:   isIPv6,
 		TimeSeen: time.Now().Add(-testIdleFlowTimeout),
@@ -357,10 +358,10 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 
 	mockIPFIXExpProc := ipfixtest.NewMockIPFIXExportingProcess(ctrl)
 	mockDataSet := ipfixentitiestesting.NewMockSet(ctrl)
-	mockConnStore := connectionstest.NewMockConnectionStore(ctrl)
+	mockConntrackConnStore := connectionstest.NewMockConntrackConnectionStore(ctrl)
 	flowExp.process = mockIPFIXExpProc
 	flowExp.ipfixSet = mockDataSet
-	flowExp.connStore = mockConnStore
+	flowExp.conntrackConnStore = mockConntrackConnStore
 
 	tests := []struct {
 		name               string
@@ -433,9 +434,9 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			flowExp.numDataSetsSent = 0
 
 			denyConn := getDenyConnection(isIPv6)
-			flowExp.denyConnStore = denyconnections.NewDenyConnectionStore()
-			flowExp.denyConnStore.AddOrUpdateConnection(denyConn)
-			assert.Equal(t, flowExp.denyConnStore.GetNumOfConnections(), 1)
+			flowExp.denyConnStore = connections.NewDenyConnectionStore(nil, nil)
+			flowExp.denyConnStore.AddOrUpdateConn(denyConn)
+			assert.Equal(t, getNumOfConnections(flowExp.denyConnStore), 1)
 
 			// Get the flow record and update it.
 			flowRec, exists := flowExp.flowRecords.GetFlowRecordFromMap(&connKey)
@@ -452,7 +453,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			if tt.isRecordActive {
 				count += 1
 				if flowexporter.IsConnectionDying(conn) {
-					mockConnStore.EXPECT().SetExportDone(connKey)
+					mockConntrackConnStore.EXPECT().SetExportDone(connKey)
 				}
 			}
 			if !isIPv6 {
@@ -468,7 +469,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			err = flowExp.sendFlowRecords()
 			assert.NoError(t, err)
 			assert.Equalf(t, uint64(count), flowExp.numDataSetsSent, "%v data sets should have been sent.", count)
-			assert.Equal(t, flowExp.denyConnStore.GetNumOfConnections(), 0)
+			assert.Equal(t, getNumOfConnections(flowExp.denyConnStore), 0)
 
 			if tt.isRecordActive && flowexporter.IsConnectionDying(conn) {
 				_, recPresent := flowExp.flowRecords.GetFlowRecordFromMap(&connKey)
@@ -476,4 +477,14 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			}
 		})
 	}
+}
+
+func getNumOfConnections(connStore *connections.DenyConnectionStore) int {
+	count := 0
+	countNumOfConns := func(key flowexporter.ConnectionKey, conn *flowexporter.Connection) error {
+		count++
+		return nil
+	}
+	connStore.ForAllConnectionsDo(countNumOfConns)
+	return count
 }

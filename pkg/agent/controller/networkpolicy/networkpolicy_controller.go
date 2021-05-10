@@ -30,10 +30,9 @@ import (
 	"k8s.io/klog/v2"
 
 	"antrea.io/antrea/pkg/agent"
-	"antrea.io/antrea/pkg/agent/flowexporter/denyconnections"
+	"antrea.io/antrea/pkg/agent/flowexporter/connections"
 	"antrea.io/antrea/pkg/agent/interfacestore"
 	"antrea.io/antrea/pkg/agent/openflow"
-	"antrea.io/antrea/pkg/agent/proxy"
 	"antrea.io/antrea/pkg/agent/types"
 	"antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	"antrea.io/antrea/pkg/querier"
@@ -93,10 +92,8 @@ type Controller struct {
 	addressGroupWatcher   *watcher
 	fullSyncGroup         sync.WaitGroup
 	ifaceStore            interfacestore.InterfaceStore
-	// denyConnectionStore is for storing deny connections for flow exporter.
-	denyConnectionStore denyconnections.DenyConnectionStore
-	// proxier is for resolving dst Service before adding to denyConnectionStore.
-	proxier proxy.Proxier
+	// denyConnStore is for storing deny connections for flow exporter.
+	denyConnStore *connections.DenyConnectionStore
 }
 
 // NewNetworkPolicyController returns a new *Controller.
@@ -108,8 +105,7 @@ func NewNetworkPolicyController(antreaClientGetter agent.AntreaClientProvider,
 	antreaPolicyEnabled bool,
 	statusManagerEnabled bool,
 	loggingEnabled bool,
-	denyConnectionStore denyconnections.DenyConnectionStore,
-	proxier proxy.Proxier,
+	denyConnStore *connections.DenyConnectionStore,
 	asyncRuleDeleteInterval time.Duration) (*Controller, error) {
 	c := &Controller{
 		antreaClientProvider: antreaClientGetter,
@@ -119,8 +115,7 @@ func NewNetworkPolicyController(antreaClientGetter agent.AntreaClientProvider,
 		antreaPolicyEnabled:  antreaPolicyEnabled,
 		statusManagerEnabled: statusManagerEnabled,
 		loggingEnabled:       loggingEnabled,
-		denyConnectionStore:  denyConnectionStore,
-		proxier:              proxier,
+		denyConnStore:        denyConnStore,
 	}
 	c.ruleCache = newRuleCache(c.enqueueRule, entityUpdates)
 	if statusManagerEnabled {

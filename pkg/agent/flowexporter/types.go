@@ -22,7 +22,6 @@ import (
 type ConnectionKey [5]string
 
 type ConnectionMapCallBack func(key ConnectionKey, conn *Connection) error
-type DenyConnectionMapCallBack func(key ConnectionKey, conn *DenyConnection) error
 type FlowRecordCallBack func(key ConnectionKey, record FlowRecord) error
 
 type Tuple struct {
@@ -52,6 +51,7 @@ type Connection struct {
 	Labels, LabelsMask []byte
 	// TODO: Have a separate field for protocol. No need to keep it in Tuple.
 	TupleOrig, TupleReply          Tuple
+	FlowKey                        Tuple
 	OriginalPackets, OriginalBytes uint64
 	ReversePackets, ReverseBytes   uint64
 	// Fields specific to Antrea
@@ -67,6 +67,10 @@ type Connection struct {
 	EgressNetworkPolicyNamespace   string
 	EgressNetworkPolicyRuleAction  uint8
 	TCPState                       string
+	// fields specific to deny connections
+	Bytes    uint64
+	IsIPv6   bool
+	TimeSeen time.Time
 }
 
 type FlowRecord struct {
@@ -78,24 +82,4 @@ type FlowRecord struct {
 	IsIPv6             bool
 	LastExportTime     time.Time
 	IsActive           bool
-}
-
-type DenyConnection struct {
-	FlowKey                        Tuple
-	Bytes                          uint64
-	SourcePodNamespace             string
-	SourcePodName                  string
-	SourceNodeName                 string
-	DestinationPodNamespace        string
-	DestinationPodName             string
-	DestinationNodeName            string
-	DestinationServicePortName     string
-	IngressNetworkPolicyName       string
-	IngressNetworkPolicyNamespace  string
-	IngressNetworkPolicyRuleAction string
-	EgressNetworkPolicyName        string
-	EgressNetworkPolicyNamespace   string
-	EgressNetworkPolicyRuleAction  string
-	IsIPv6                         bool
-	TimeSeen                       time.Time
 }
