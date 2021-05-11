@@ -548,7 +548,7 @@ func (data *TestData) deployAntreaFlowExporter(ipfixCollector string) error {
 		{"FlowExporter", "true", true},
 		{"flowPollInterval", "\"1s\"", false},
 		{"activeFlowExportTimeout", "\"2s\"", false},
-		{"inactiveFlowExportTimeout", "\"1s\"", false},
+		{"idleFlowExportTimeout", "\"1s\"", false},
 	}
 	if ipfixCollector != "" {
 		ac = append(ac, configChange{"flowCollectorAddr", fmt.Sprintf("\"%s\"", ipfixCollector), false})

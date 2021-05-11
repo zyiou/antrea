@@ -25,7 +25,7 @@ import (
 
 type DenyConnectionStore interface {
 	// AddOrUpdateConnection adds or updates connection into deny connection map.
-	AddOrUpdateConnection(conn *flowexporter.DenyConnection)
+	AddOrUpdateConnection(conn *flowexporter.Connection)
 	// ForAllConnectionsDo executes the callback for each connection in deny connection map.
 	ForAllConnectionsDo(callback flowexporter.DenyConnectionMapCallBack) error
 	// ContainsConnection checks whether connection exists in deny connection store.
@@ -38,18 +38,18 @@ type DenyConnectionStore interface {
 }
 
 type denyConnectionStore struct {
-	connections map[flowexporter.ConnectionKey]*flowexporter.DenyConnection
+	connections map[flowexporter.ConnectionKey]*flowexporter.Connection
 	mutex       sync.Mutex
 }
 
 func NewDenyConnectionStore() *denyConnectionStore {
 	return &denyConnectionStore{
-		connections: make(map[flowexporter.ConnectionKey]*flowexporter.DenyConnection),
+		connections: make(map[flowexporter.ConnectionKey]*flowexporter.Connection),
 	}
 }
 
 // AddOrUpdateConnection adds or updates connection into deny connection map.
-func (ds *denyConnectionStore) AddOrUpdateConnection(conn *flowexporter.DenyConnection) {
+func (ds *denyConnectionStore) AddOrUpdateConnection(conn *flowexporter.Connection) {
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
 	connKey := flowexporter.GetConnKey(conn.FlowKey)

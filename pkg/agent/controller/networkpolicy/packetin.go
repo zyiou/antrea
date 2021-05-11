@@ -34,7 +34,6 @@ import (
 	"github.com/vmware-tanzu/antrea/pkg/agent/interfacestore"
 	"github.com/vmware-tanzu/antrea/pkg/agent/openflow"
 	binding "github.com/vmware-tanzu/antrea/pkg/ovs/openflow"
-	"github.com/vmware-tanzu/antrea/pkg/util/env"
 	"github.com/vmware-tanzu/antrea/pkg/util/ip"
 	"github.com/vmware-tanzu/antrea/pkg/util/logdir"
 )
@@ -352,7 +351,7 @@ func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
 }
 
 func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet) error {
-	denyConn := flowexporter.DenyConnection{}
+	denyConn := flowexporter.Connection{}
 
 	// Get 5-tuple information
 	flowKey := flowexporter.Tuple{
@@ -380,19 +379,16 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 	// Map local source IP and destination IP
 	sIface, srcFound := c.ifaceStore.GetInterfaceByIP(flowKey.SourceAddress.String())
 	dIface, dstFound := c.ifaceStore.GetInterfaceByIP(flowKey.DestinationAddress.String())
-	node, _ := env.GetNodeName()
 	if !srcFound && !dstFound {
 		klog.Warningf("Cannot map any of the IP %s or %s to a local Pod", flowKey.SourceAddress.String(), flowKey.DestinationAddress.String())
 	}
 	if srcFound && sIface.Type == interfacestore.ContainerInterface {
 		denyConn.SourcePodName = sIface.ContainerInterfaceConfig.PodName
 		denyConn.SourcePodNamespace = sIface.ContainerInterfaceConfig.PodNamespace
-		denyConn.SourceNodeName = node
 	}
 	if dstFound && dIface.Type == interfacestore.ContainerInterface {
 		denyConn.DestinationPodName = dIface.ContainerInterfaceConfig.PodName
 		denyConn.DestinationPodNamespace = dIface.ContainerInterfaceConfig.PodNamespace
-		denyConn.DestinationNodeName = node
 	}
 
 	matchers := pktIn.GetMatches()
@@ -409,9 +405,9 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 
 	// For K8s network policy drop action, we cannot get name/namespace.
 	if tableID == openflow.IngressDefaultTable {
-		denyConn.IngressNetworkPolicyRuleAction = disposition
+		denyConn.IngressNetworkPolicyRuleAction = flowexporter.RuleActionToUint8(disposition)
 	} else if tableID == openflow.EgressDefaultTable {
-		denyConn.EgressNetworkPolicyRuleAction = disposition
+		denyConn.EgressNetworkPolicyRuleAction = flowexporter.RuleActionToUint8(disposition)
 	} else { // Get name and namespace for Antrea Network Policy or Antrea Cluster Network Policy
 		// Set match to corresponding ingress/egress reg according to disposition
 		match = getMatch(matchers, tableID, id)
@@ -428,11 +424,11 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 			if tableID == openflow.AntreaPolicyIngressRuleTable {
 				denyConn.IngressNetworkPolicyName = policy.Name
 				denyConn.IngressNetworkPolicyNamespace = policy.Namespace
-				denyConn.IngressNetworkPolicyRuleAction = disposition
+				denyConn.IngressNetworkPolicyRuleAction = flowexporter.RuleActionToUint8(disposition)
 			} else if tableID == openflow.AntreaPolicyEgressRuleTable {
 				denyConn.EgressNetworkPolicyName = policy.Name
 				denyConn.EgressNetworkPolicyNamespace = policy.Namespace
-				denyConn.EgressNetworkPolicyRuleAction = disposition
+				denyConn.EgressNetworkPolicyRuleAction = flowexporter.RuleActionToUint8(disposition)
 			}
 		}
 	}

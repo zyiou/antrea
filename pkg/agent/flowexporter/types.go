@@ -22,7 +22,7 @@ import (
 type ConnectionKey [5]string
 
 type ConnectionMapCallBack func(key ConnectionKey, conn *Connection) error
-type DenyConnectionMapCallBack func(key ConnectionKey, conn *DenyConnection) error
+type DenyConnectionMapCallBack func(key ConnectionKey, conn *Connection) error
 type FlowRecordCallBack func(key ConnectionKey, record FlowRecord) error
 
 type Tuple struct {
@@ -67,6 +67,10 @@ type Connection struct {
 	EgressNetworkPolicyNamespace   string
 	EgressNetworkPolicyRuleAction  uint8
 	TCPState                       string
+	FlowKey Tuple
+	Bytes    uint64
+	IsIPv6   bool
+	TimeSeen time.Time
 }
 
 type FlowRecord struct {
@@ -78,24 +82,4 @@ type FlowRecord struct {
 	IsIPv6             bool
 	LastExportTime     time.Time
 	IsActive           bool
-}
-
-type DenyConnection struct {
-	FlowKey                        Tuple
-	Bytes                          uint64
-	SourcePodNamespace             string
-	SourcePodName                  string
-	SourceNodeName                 string
-	DestinationPodNamespace        string
-	DestinationPodName             string
-	DestinationNodeName            string
-	DestinationServicePortName     string
-	IngressNetworkPolicyName       string
-	IngressNetworkPolicyNamespace  string
-	IngressNetworkPolicyRuleAction string
-	EgressNetworkPolicyName        string
-	EgressNetworkPolicyNamespace   string
-	EgressNetworkPolicyRuleAction  string
-	IsIPv6                         bool
-	TimeSeen                       time.Time
 }
