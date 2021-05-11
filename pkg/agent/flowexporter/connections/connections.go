@@ -58,6 +58,7 @@ func NewConnectionStore(
 		ifaceStore:    ifaceStore,
 		antreaProxier: proxier,
 		isDenyConn:    isDenyConn,
+		mutex: sync.Mutex{},
 	}
 }
 

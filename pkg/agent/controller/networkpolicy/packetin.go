@@ -369,9 +369,10 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 	denyConn.FlowKey = flowKey
 
 	// No need to obtain connection info again if it already exists in denyConnectionStore.
-	if c.denyConnectionStore.ContainsConnection(flowKey) {
+	 _, exist := c.denyConnectionStore.GetConnByKey(flowexporter.GetConnKey(flowKey))
+	 if exist {
 		denyConn.Bytes = uint64(packet.IPLength)
-		c.denyConnectionStore.AddOrUpdateConnection(&denyConn)
+		c.denyConnectionStore.AddOrUpdateConn(&denyConn)
 		return nil
 	}
 
@@ -418,6 +419,6 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 	}
 	denyConn.TimeSeen = time.Now()
 	denyConn.Bytes = uint64(packet.IPLength)
-	c.denyConnectionStore.AddOrUpdateConnection(&denyConn)
+	c.denyConnectionStore.AddOrUpdateConn(&denyConn)
 	return nil
 }

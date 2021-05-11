@@ -83,7 +83,7 @@ var (
 type flowExporter struct {
 	connStore       connections.ConntrackConnectionStore
 	flowRecords     *flowrecords.FlowRecords
-	denyConnStore   connections.DenyConnectionStore
+	denyConnStore   connections.ConnectionStore
 	process         ipfix.IPFIXExportingProcess
 	elementsListv4  []*ipfixentities.InfoElementWithValue
 	elementsListv6  []*ipfixentities.InfoElementWithValue
@@ -128,7 +128,7 @@ func prepareExporterInputArgs(collectorAddr, collectorProto string) (exporter.Ex
 	return expInput, nil
 }
 
-func NewFlowExporter(connStore connections.ConntrackConnectionStore, records *flowrecords.FlowRecords, denyConnStore connections.DenyConnectionStore,
+func NewFlowExporter(connStore connections.ConntrackConnectionStore, records *flowrecords.FlowRecords, denyConnStore connections.ConnectionStore,
 	collectorAddr string, collectorProto string, activeFlowTimeout time.Duration, idleFlowTimeout time.Duration,
 	enableTLSToFlowAggregator bool, v4Enabled bool, v6Enabled bool, k8sClient kubernetes.Interface,
 	nodeRouteController *noderoute.Controller, isNetworkPolicyOnly bool) (*flowExporter, error) {
@@ -328,23 +328,23 @@ func (exp *flowExporter) sendFlowRecords() error {
 		return fmt.Errorf("error when iterating flow records: %v", err)
 	}
 
-	exportDenyConn := func(connKey flowexporter.ConnectionKey, conn *flowexporter.Connection) error {
-		if time.Since(conn.TimeSeen) >= exp.idleFlowTimeout {
-			if err := exp.addDenyConnToSet(conn); err != nil {
-				return err
-			}
-			if _, err := exp.sendDataSet(); err != nil {
-				return err
-			}
-			exp.numDataSetsSent = exp.numDataSetsSent + 1
-			exp.denyConnStore.DeleteConnWithoutLock(connKey)
-		}
-		return nil
-	}
-	err = exp.denyConnStore.ForAllConnectionsDo(exportDenyConn)
-	if err != nil {
-		return fmt.Errorf("error when iterating deny connections: %v", err)
-	}
+	//exportDenyConn := func(connKey flowexporter.ConnectionKey, conn *flowexporter.Connection) error {
+	//	if time.Since(conn.TimeSeen) >= exp.idleFlowTimeout {
+	//		if err := exp.addDenyConnToSet(conn); err != nil {
+	//			return err
+	//		}
+	//		if _, err := exp.sendDataSet(); err != nil {
+	//			return err
+	//		}
+	//		exp.numDataSetsSent = exp.numDataSetsSent + 1
+	//		exp.denyConnStore.DeleteConnWithoutLock(connKey)
+	//	}
+	//	return nil
+	//}
+	//err = exp.denyConnStore.ForAllConnectionsDo(exportDenyConn)
+	//if err != nil {
+	//	return fmt.Errorf("error when iterating deny connections: %v", err)
+	//}
 	return nil
 }
 

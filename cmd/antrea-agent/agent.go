@@ -102,7 +102,7 @@ func run(o *Options) error {
 		features.DefaultFeatureGate.Enabled(features.AntreaProxy),
 		features.DefaultFeatureGate.Enabled(features.AntreaPolicy),
 		features.DefaultFeatureGate.Enabled(features.Egress),
-		features.DefaultFeatureGate.Enabled(features.FlowExporter))
+		false)
 
 	_, serviceCIDRNet, _ := net.ParseCIDR(o.config.ServiceCIDR)
 	var serviceCIDRNetv6 *net.IPNet
@@ -194,9 +194,10 @@ func run(o *Options) error {
 	// if AntreaPolicy feature is enabled.
 	statusManagerEnabled := antreaPolicyEnabled
 	loggingEnabled := antreaPolicyEnabled
-	var denyConnectionStore connections.DenyConnectionStore
+	var denyConnectionStore connections.ConnectionStore
 	if features.DefaultFeatureGate.Enabled(features.FlowExporter) {
-		denyConnectionStore = connections.NewDenyConnectionStore()
+		connStore := connections.NewConnectionStore(ifaceStore, proxier, true)
+		denyConnectionStore = connections.NewDenyConnectionStore(connStore)
 	}
 	networkPolicyController, err := networkpolicy.NewNetworkPolicyController(
 		antreaClientProvider,

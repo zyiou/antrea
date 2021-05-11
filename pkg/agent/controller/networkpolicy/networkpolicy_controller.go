@@ -93,7 +93,7 @@ type Controller struct {
 	fullSyncGroup         sync.WaitGroup
 	ifaceStore            interfacestore.InterfaceStore
 	// denyConnectionStore is for storing deny connections for flow exporter.
-	denyConnectionStore connections.DenyConnectionStore
+	denyConnectionStore connections.ConnectionStore
 }
 
 // NewNetworkPolicyController returns a new *Controller.
@@ -105,7 +105,7 @@ func NewNetworkPolicyController(antreaClientGetter agent.AntreaClientProvider,
 	antreaPolicyEnabled bool,
 	statusManagerEnabled bool,
 	loggingEnabled bool,
-	denyConnectionStore connections.DenyConnectionStore,
+	denyConnectionStore connections.ConnectionStore,
 	asyncRuleDeleteInterval time.Duration) (*Controller, error) {
 	c := &Controller{
 		antreaClientProvider: antreaClientGetter,
