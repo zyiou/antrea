@@ -23,7 +23,6 @@ import (
 
 	"antrea.io/antrea/pkg/agent/flowexporter"
 	"antrea.io/antrea/pkg/agent/interfacestore"
-	"antrea.io/antrea/pkg/agent/metrics"
 	"antrea.io/antrea/pkg/agent/proxy"
 )
 
@@ -32,19 +31,16 @@ type connectionStore struct {
 	ifaceStore    interfacestore.InterfaceStore
 	antreaProxier proxy.Proxier
 	mutex         sync.Mutex
-	isDenyConn    bool
 }
 
 func NewConnectionStore(
 	ifaceStore interfacestore.InterfaceStore,
 	proxier proxy.Proxier,
-	isDenyConn bool,
 ) *connectionStore {
 	return &connectionStore{
 		connections:   make(map[flowexporter.ConnectionKey]*flowexporter.Connection),
 		ifaceStore:    ifaceStore,
 		antreaProxier: proxier,
-		isDenyConn:    isDenyConn,
 	}
 }
 
@@ -66,20 +62,6 @@ func (cs *connectionStore) ForAllConnectionsDo(callback flowexporter.ConnectionM
 			klog.Errorf("Callback execution failed for flow with key: %v, conn: %v, k, v: %v", k, v, err)
 			return err
 		}
-	}
-	return nil
-}
-
-// DeleteConnWithoutLock deletes the connection from the connection map given
-// the connection key without grabbing the lock. Caller is expected to grab lock.
-func (cs *connectionStore) DeleteConnWithoutLock(connKey flowexporter.ConnectionKey) error {
-	_, exists := cs.connections[connKey]
-	if !exists {
-		return fmt.Errorf("connection with key %v doesn't exist in map", connKey)
-	}
-	delete(cs.connections, connKey)
-	if !cs.isDenyConn {
-		metrics.TotalAntreaConnectionsInConnTrackTable.Dec()
 	}
 	return nil
 }

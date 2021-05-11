@@ -70,7 +70,7 @@ func NewConntrackConnectionStore(
 		v6Enabled:            v6Enabled,
 		networkPolicyQuerier: npQuerier,
 		pollInterval:         pollInterval,
-		connectionStore:      NewConnectionStore(ifaceStore, proxier, false),
+		connectionStore:      NewConnectionStore(ifaceStore, proxier),
 	}
 }
 
@@ -232,6 +232,18 @@ func (cs *conntrackConnectionStore) AddOrUpdateConn(conn *flowexporter.Connectio
 		// Add new antrea connection to connection store
 		cs.connections[connKey] = conn
 	}
+}
+
+// DeleteConnWithoutLock deletes the connection from the connection map given
+// the connection key without grabbing the lock. Caller is expected to grab lock.
+func (cs *conntrackConnectionStore) DeleteConnWithoutLock(connKey flowexporter.ConnectionKey) error {
+	_, exists := cs.connections[connKey]
+	if !exists {
+		return fmt.Errorf("connection with key %v doesn't exist in map", connKey)
+	}
+	delete(cs.connections, connKey)
+	metrics.TotalAntreaConnectionsInConnTrackTable.Dec()
+	return nil
 }
 
 // SetExportDone sets DoneExport field of conntrack connection to true given the connection key.

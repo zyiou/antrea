@@ -21,6 +21,7 @@ import (
 
 	"antrea.io/antrea/pkg/agent/flowexporter"
 	"antrea.io/antrea/pkg/agent/interfacestore"
+	"antrea.io/antrea/pkg/agent/metrics"
 	"antrea.io/antrea/pkg/agent/proxy"
 	"antrea.io/antrea/pkg/util/ip"
 )
@@ -32,7 +33,7 @@ type DenyConnectionStore struct {
 func NewDenyConnectionStore(ifaceStore interfacestore.InterfaceStore,
 	proxier proxy.Proxier) *DenyConnectionStore {
 	return &DenyConnectionStore{
-		connectionStore: NewConnectionStore(ifaceStore, proxier, true),
+		connectionStore: NewConnectionStore(ifaceStore, proxier),
 	}
 }
 
@@ -52,5 +53,18 @@ func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection) {
 	protocolStr := ip.IPProtocolNumberToString(conn.FlowKey.Protocol, "UnknownProtocol")
 	serviceStr := fmt.Sprintf("%s:%d/%s", conn.FlowKey.DestinationAddress, conn.FlowKey.DestinationPort, protocolStr)
 	ds.fillServiceInfo(conn, serviceStr)
+	metrics.TotalDenyConnections.Inc()
 	ds.connections[connKey] = conn
+}
+
+// DeleteConnWithoutLock deletes the connection from the connection map given
+// the connection key without grabbing the lock. Caller is expected to grab lock.
+func (ds *DenyConnectionStore) DeleteConnWithoutLock(connKey flowexporter.ConnectionKey) error {
+	_, exists := ds.connections[connKey]
+	if !exists {
+		return fmt.Errorf("connection with key %v doesn't exist in map", connKey)
+	}
+	delete(ds.connections, connKey)
+	metrics.TotalDenyConnections.Dec()
+	return nil
 }
