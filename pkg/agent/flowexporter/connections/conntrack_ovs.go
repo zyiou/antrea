@@ -261,6 +261,14 @@ func flowStringToAntreaConnection(flow string, zoneFilter uint16) (*flowexporter
 				conn.TCPState = items[1]
 			}
 		}
+		flowKey := flowexporter.Tuple{
+			SourceAddress:      conn.TupleOrig.SourceAddress,
+			DestinationAddress: conn.TupleReply.SourceAddress,
+			Protocol:           conn.TupleOrig.Protocol,
+			SourcePort:         conn.TupleOrig.SourcePort,
+			DestinationPort:    conn.TupleReply.SourcePort,
+		}
+		conn.FlowKey = flowKey
 	}
 	if !inZone {
 		return nil, nil
