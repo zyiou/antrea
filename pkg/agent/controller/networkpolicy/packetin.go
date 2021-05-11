@@ -432,17 +432,6 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 			}
 		}
 	}
-	// resolve destination Service information
-	if c.proxier != nil {
-		protocolStr := ip.IPProtocolNumberToString(denyConn.FlowKey.Protocol, "UnknownProtocol")
-		serviceStr := fmt.Sprintf("%s:%d/%s", denyConn.FlowKey.DestinationAddress, denyConn.FlowKey.DestinationPort, protocolStr)
-		servicePortName, exists := c.proxier.GetServiceByIP(serviceStr)
-		if !exists {
-			klog.Warningf("Could not retrieve the Service info from antrea-agent-proxier for the serviceStr: %s", serviceStr)
-		} else {
-			denyConn.DestinationServicePortName = servicePortName.String()
-		}
-	}
 	denyConn.TimeSeen = time.Now()
 	denyConn.Bytes = uint64(packet.IPLength)
 	c.denyConnectionStore.AddOrUpdateConnection(&denyConn)

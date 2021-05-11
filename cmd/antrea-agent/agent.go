@@ -209,7 +209,6 @@ func run(o *Options) error {
 		statusManagerEnabled,
 		loggingEnabled,
 		denyConnectionStore,
-		proxier,
 		asyncRuleDeleteInterval)
 	if err != nil {
 		return fmt.Errorf("error creating new NetworkPolicy controller: %v", err)
