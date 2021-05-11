@@ -363,19 +363,19 @@ func run(o *Options) error {
 		isNetworkPolicyOnly := networkConfig.TrafficEncapMode.IsNetworkPolicyOnly()
 
 		flowRecords := flowrecords.NewFlowRecords()
-		connStore := connections.NewConntrackConnectionStore(
+		connStore := connections.NewConnectionStore(ifaceStore, proxier, false)
+		conntrackConnStore := connections.NewConntrackConnectionStore(
 			connections.InitializeConnTrackDumper(nodeConfig, serviceCIDRNet, serviceCIDRNetv6, ovsDatapathType, features.DefaultFeatureGate.Enabled(features.AntreaProxy)),
 			flowRecords,
-			ifaceStore,
 			v4Enabled,
 			v6Enabled,
-			proxier,
 			networkPolicyController,
-			o.pollInterval)
-		go connStore.Run(stopCh)
+			o.pollInterval,
+			connStore)
+		go conntrackConnStore.Run(stopCh)
 
 		flowExporter, err := exporter.NewFlowExporter(
-			connStore,
+			conntrackConnStore,
 			flowRecords,
 			denyConnectionStore,
 			o.flowCollectorAddr,

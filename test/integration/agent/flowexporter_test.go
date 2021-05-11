@@ -128,7 +128,8 @@ func TestConnectionStoreAndFlowRecords(t *testing.T) {
 	ifStoreMock := interfacestoretest.NewMockInterfaceStore(ctrl)
 	npQuerier := queriertest.NewMockAgentNetworkPolicyInfoQuerier(ctrl)
 	// TODO: Enhance the integration test by testing service.
-	connStore := connections.NewConntrackConnectionStore(connDumperMock, flowrecords.NewFlowRecords(), ifStoreMock, true, false, nil, npQuerier, testPollInterval)
+	connStore := connections.NewConnectionStore(ifStoreMock, nil, false)
+	conntrackConnStore := connections.NewConntrackConnectionStore(connDumperMock, flowrecords.NewFlowRecords(), true, false, npQuerier, testPollInterval, connStore)
 	// Expect calls for connStore.poll and other callees
 	connDumperMock.EXPECT().DumpFlows(uint16(openflow.CtZone)).Return(testConns, 0, nil)
 	connDumperMock.EXPECT().GetMaxConnections().Return(0, nil)
@@ -142,7 +143,7 @@ func TestConnectionStoreAndFlowRecords(t *testing.T) {
 		}
 	}
 	// Execute connStore.Poll
-	connsLens, err := connStore.Poll()
+	connsLens, err := conntrackConnStore.Poll()
 	require.Nil(t, err, fmt.Sprintf("Failed to add connections to connection store: %v", err))
 	assert.Len(t, connsLens, 1, "length of connsLens is expected to be 1")
 	assert.Len(t, testConns, connsLens[0], "expected connections should be equal to number of testConns")
@@ -156,7 +157,7 @@ func TestConnectionStoreAndFlowRecords(t *testing.T) {
 			expConn.DestinationPodName = testIfConfigs[i].PodName
 			expConn.DestinationPodNamespace = testIfConfigs[i].PodNamespace
 		}
-		actualConn, found := connStore.GetConnByKey(*testConnKeys[i])
+		actualConn, found := conntrackConnStore.GetConnByKey(*testConnKeys[i])
 		assert.Equal(t, found, true, "testConn should be present in connection store")
 		assert.Equal(t, expConn, actualConn, "testConn and connection in connection store should be equal")
 	}
