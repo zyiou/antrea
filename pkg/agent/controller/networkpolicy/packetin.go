@@ -31,7 +31,6 @@ import (
 
 	"github.com/vmware-tanzu/antrea/pkg/agent/config"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter"
-	"github.com/vmware-tanzu/antrea/pkg/agent/interfacestore"
 	"github.com/vmware-tanzu/antrea/pkg/agent/openflow"
 	binding "github.com/vmware-tanzu/antrea/pkg/ovs/openflow"
 	"github.com/vmware-tanzu/antrea/pkg/util/ip"
@@ -374,21 +373,6 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 		denyConn.Bytes = uint64(packet.IPLength)
 		c.denyConnectionStore.AddOrUpdateConnection(&denyConn)
 		return nil
-	}
-
-	// Map local source IP and destination IP
-	sIface, srcFound := c.ifaceStore.GetInterfaceByIP(flowKey.SourceAddress.String())
-	dIface, dstFound := c.ifaceStore.GetInterfaceByIP(flowKey.DestinationAddress.String())
-	if !srcFound && !dstFound {
-		klog.Warningf("Cannot map any of the IP %s or %s to a local Pod", flowKey.SourceAddress.String(), flowKey.DestinationAddress.String())
-	}
-	if srcFound && sIface.Type == interfacestore.ContainerInterface {
-		denyConn.SourcePodName = sIface.ContainerInterfaceConfig.PodName
-		denyConn.SourcePodNamespace = sIface.ContainerInterfaceConfig.PodNamespace
-	}
-	if dstFound && dIface.Type == interfacestore.ContainerInterface {
-		denyConn.DestinationPodName = dIface.ContainerInterfaceConfig.PodName
-		denyConn.DestinationPodNamespace = dIface.ContainerInterfaceConfig.PodNamespace
 	}
 
 	matchers := pktIn.GetMatches()

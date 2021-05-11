@@ -32,7 +32,6 @@ import (
 	"github.com/vmware-tanzu/antrea/pkg/agent/controller/noderoute"
 	"github.com/vmware-tanzu/antrea/pkg/agent/controller/traceflow"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/connections"
-	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/denyconnections"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/exporter"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/flowrecords"
 	"github.com/vmware-tanzu/antrea/pkg/agent/interfacestore"
@@ -195,9 +194,9 @@ func run(o *Options) error {
 	// if AntreaPolicy feature is enabled.
 	statusManagerEnabled := antreaPolicyEnabled
 	loggingEnabled := antreaPolicyEnabled
-	var denyConnectionStore denyconnections.DenyConnectionStore
+	var denyConnectionStore connections.DenyConnectionStore
 	if features.DefaultFeatureGate.Enabled(features.FlowExporter) {
-		denyConnectionStore = denyconnections.NewDenyConnectionStore()
+		denyConnectionStore = connections.NewDenyConnectionStore()
 	}
 	networkPolicyController, err := networkpolicy.NewNetworkPolicyController(
 		antreaClientProvider,
@@ -364,7 +363,7 @@ func run(o *Options) error {
 		isNetworkPolicyOnly := networkConfig.TrafficEncapMode.IsNetworkPolicyOnly()
 
 		flowRecords := flowrecords.NewFlowRecords()
-		connStore := connections.NewConnectionStore(
+		connStore := connections.NewConntrackConnectionStore(
 			connections.InitializeConnTrackDumper(nodeConfig, serviceCIDRNet, serviceCIDRNetv6, ovsDatapathType, features.DefaultFeatureGate.Enabled(features.AntreaProxy)),
 			flowRecords,
 			ifaceStore,

@@ -30,7 +30,6 @@ import (
 	"github.com/vmware-tanzu/antrea/pkg/agent/controller/noderoute"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/connections"
-	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/denyconnections"
 	"github.com/vmware-tanzu/antrea/pkg/agent/flowexporter/flowrecords"
 	"github.com/vmware-tanzu/antrea/pkg/agent/openflow"
 	"github.com/vmware-tanzu/antrea/pkg/ipfix"
@@ -82,19 +81,19 @@ var (
 )
 
 type flowExporter struct {
-	connStore                 connections.ConnectionStore
-	flowRecords               *flowrecords.FlowRecords
-	denyConnStore             denyconnections.DenyConnectionStore
-	process                   ipfix.IPFIXExportingProcess
-	elementsListv4            []*ipfixentities.InfoElementWithValue
-	elementsListv6            []*ipfixentities.InfoElementWithValue
-	ipfixSet                  ipfixentities.Set
-	numDataSetsSent           uint64 // used for unit tests.
-	templateIDv4              uint16
-	templateIDv6              uint16
-	registry                  ipfix.IPFIXRegistry
-	v4Enabled                 bool
-	v6Enabled                 bool
+	connStore       connections.ConntrackConnectionStore
+	flowRecords     *flowrecords.FlowRecords
+	denyConnStore   connections.DenyConnectionStore
+	process         ipfix.IPFIXExportingProcess
+	elementsListv4  []*ipfixentities.InfoElementWithValue
+	elementsListv6  []*ipfixentities.InfoElementWithValue
+	ipfixSet        ipfixentities.Set
+	numDataSetsSent uint64 // used for unit tests.
+	templateIDv4    uint16
+	templateIDv6    uint16
+	registry        ipfix.IPFIXRegistry
+	v4Enabled       bool
+	v6Enabled       bool
 	exporterInput             exporter.ExporterInput
 	activeFlowTimeout         time.Duration
 	idleFlowTimeout           time.Duration
@@ -129,7 +128,7 @@ func prepareExporterInputArgs(collectorAddr, collectorProto string) (exporter.Ex
 	return expInput, nil
 }
 
-func NewFlowExporter(connStore connections.ConnectionStore, records *flowrecords.FlowRecords, denyConnStore denyconnections.DenyConnectionStore,
+func NewFlowExporter(connStore connections.ConntrackConnectionStore, records *flowrecords.FlowRecords, denyConnStore connections.DenyConnectionStore,
 	collectorAddr string, collectorProto string, activeFlowTimeout time.Duration, idleFlowTimeout time.Duration,
 	enableTLSToFlowAggregator bool, v4Enabled bool, v6Enabled bool, k8sClient kubernetes.Interface,
 	nodeRouteController *noderoute.Controller, isNetworkPolicyOnly bool) (*flowExporter, error) {

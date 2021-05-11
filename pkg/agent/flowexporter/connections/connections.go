@@ -39,7 +39,7 @@ var serviceProtocolMap = map[uint8]corev1.Protocol{
 	132: corev1.ProtocolSCTP,
 }
 
-type ConnectionStore interface {
+type ConntrackConnectionStore interface {
 	// Run enables the periodical polling of conntrack connections at a given flowPollInterval.
 	Run(stopCh <-chan struct{})
 	// GetConnByKey gets the connection in connection map given the connection key.
@@ -50,7 +50,7 @@ type ConnectionStore interface {
 	ForAllConnectionsDo(callback flowexporter.ConnectionMapCallBack) error
 }
 
-type connectionStore struct {
+type conntrackConnectionStore struct {
 	connections          map[flowexporter.ConnectionKey]*flowexporter.Connection
 	flowRecords          *flowrecords.FlowRecords
 	connDumper           ConnTrackDumper
@@ -63,7 +63,7 @@ type connectionStore struct {
 	mutex                sync.Mutex
 }
 
-func NewConnectionStore(
+func NewConntrackConnectionStore(
 	connTrackDumper ConnTrackDumper,
 	flowRecords *flowrecords.FlowRecords,
 	ifaceStore interfacestore.InterfaceStore,
@@ -72,8 +72,8 @@ func NewConnectionStore(
 	proxier proxy.Proxier,
 	npQuerier querier.AgentNetworkPolicyInfoQuerier,
 	pollInterval time.Duration,
-) *connectionStore {
-	return &connectionStore{
+) *conntrackConnectionStore {
+	return &conntrackConnectionStore{
 		connections:          make(map[flowexporter.ConnectionKey]*flowexporter.Connection),
 		flowRecords:          flowRecords,
 		connDumper:           connTrackDumper,
@@ -87,7 +87,7 @@ func NewConnectionStore(
 }
 
 // Run enables the periodical polling of conntrack connections at a given flowPollInterval.
-func (cs *connectionStore) Run(stopCh <-chan struct{}) {
+func (cs *conntrackConnectionStore) Run(stopCh <-chan struct{}) {
 	klog.Infof("Starting conntrack polling")
 
 	pollTicker := time.NewTicker(cs.pollInterval)
@@ -113,7 +113,7 @@ func (cs *connectionStore) Run(stopCh <-chan struct{}) {
 
 // addOrUpdateConn updates the connection if it is already present, i.e., update timestamp, counters etc.,
 // or adds a new Connection by 5-tuple of the flow along with local Pod and PodNameSpace.
-func (cs *connectionStore) addOrUpdateConn(conn *flowexporter.Connection) {
+func (cs *conntrackConnectionStore) addOrUpdateConn(conn *flowexporter.Connection) {
 	connKey := flowexporter.NewConnectionKey(conn)
 
 	cs.mutex.Lock()
@@ -210,7 +210,7 @@ func (cs *connectionStore) addOrUpdateConn(conn *flowexporter.Connection) {
 }
 
 // GetConnByKey gets the connection in connection map given the connection key.
-func (cs *connectionStore) GetConnByKey(connKey flowexporter.ConnectionKey) (*flowexporter.Connection, bool) {
+func (cs *conntrackConnectionStore) GetConnByKey(connKey flowexporter.ConnectionKey) (*flowexporter.Connection, bool) {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	conn, found := cs.connections[connKey]
@@ -218,7 +218,7 @@ func (cs *connectionStore) GetConnByKey(connKey flowexporter.ConnectionKey) (*fl
 }
 
 // SetExportDone sets DoneExport field of connection to true given the connection key.
-func (cs *connectionStore) SetExportDone(connKey flowexporter.ConnectionKey) error {
+func (cs *conntrackConnectionStore) SetExportDone(connKey flowexporter.ConnectionKey) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	if conn, found := cs.connections[connKey]; !found {
@@ -230,7 +230,7 @@ func (cs *connectionStore) SetExportDone(connKey flowexporter.ConnectionKey) err
 }
 
 // ForAllConnectionsDo execute the callback for each connection in connection map.
-func (cs *connectionStore) ForAllConnectionsDo(callback flowexporter.ConnectionMapCallBack) error {
+func (cs *conntrackConnectionStore) ForAllConnectionsDo(callback flowexporter.ConnectionMapCallBack) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	for k, v := range cs.connections {
@@ -247,7 +247,7 @@ func (cs *connectionStore) ForAllConnectionsDo(callback flowexporter.ConnectionM
 // address family, as a slice. In dual-stack clusters, the slice will contain 2 values (number of IPv4 connections first,
 // then number of IPv6 connections).
 // TODO: As optimization, only poll invalid/closed connections during every poll, and poll the established connections right before the export.
-func (cs *connectionStore) Poll() ([]int, error) {
+func (cs *conntrackConnectionStore) Poll() ([]int, error) {
 	klog.V(2).Infof("Polling conntrack")
 	// Reset IsPresent flag for all connections in connection map before dumping flows in conntrack module.
 	// if the connection does not exist in conntrack table and has been exported, we will delete it from connection map.
@@ -300,7 +300,7 @@ func (cs *connectionStore) Poll() ([]int, error) {
 
 // deleteConnectionByKeyWithoutLock deletes the connection in connection map given the
 // connection key without grabbing the lock. Caller is expected to grab lock.
-func (cs *connectionStore) deleteConnectionByKeyWithoutLock(connKey flowexporter.ConnectionKey) error {
+func (cs *conntrackConnectionStore) deleteConnectionByKeyWithoutLock(connKey flowexporter.ConnectionKey) error {
 	_, exists := cs.connections[connKey]
 	if !exists {
 		return fmt.Errorf("connection with key %v doesn't exist in map", connKey)

@@ -128,7 +128,7 @@ func TestConnectionStoreAndFlowRecords(t *testing.T) {
 	ifStoreMock := interfacestoretest.NewMockInterfaceStore(ctrl)
 	npQuerier := queriertest.NewMockAgentNetworkPolicyInfoQuerier(ctrl)
 	// TODO: Enhance the integration test by testing service.
-	connStore := connections.NewConnectionStore(connDumperMock, flowrecords.NewFlowRecords(), ifStoreMock, true, false, nil, npQuerier, testPollInterval)
+	connStore := connections.NewConntrackConnectionStore(connDumperMock, flowrecords.NewFlowRecords(), ifStoreMock, true, false, nil, npQuerier, testPollInterval)
 	// Expect calls for connStore.poll and other callees
 	connDumperMock.EXPECT().DumpFlows(uint16(openflow.CtZone)).Return(testConns, 0, nil)
 	connDumperMock.EXPECT().GetMaxConnections().Return(0, nil)
