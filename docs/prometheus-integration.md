@@ -145,6 +145,9 @@ Below is a list of metrics, provided by the components and by 3rd parties.
 in the Antrea ZoneID of the conntrack table. This metric gets updated at
 an interval specified by flowPollInterval, a configuration parameter for
 the Agent.
+- **antrea_agent_deny_connection_count:** Number of deny connections
+detected by Flow Exporter deny connections tracking. This metric gets
+updated when a flow is rejected/dropped by network policy.
 - **antrea_agent_conntrack_max_connection_count:** Size of the conntrack
 table. This metric gets updated at an interval specified by flowPollInterval,
 a configuration parameter for the Agent.

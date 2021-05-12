@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
+	"antrea.io/antrea/pkg/flowaggregator/podcontroller"
 	"antrea.io/antrea/pkg/ipfix"
 )
 
@@ -168,6 +169,7 @@ type flowAggregator struct {
 	flowAggregatorAddress       string
 	k8sClient                   kubernetes.Interface
 	observationDomainID         uint32
+	podController               *podcontroller.PodController
 }
 
 func NewFlowAggregator(
@@ -178,6 +180,7 @@ func NewFlowAggregator(
 	flowAggregatorAddress string,
 	k8sClient kubernetes.Interface,
 	observationDomainID uint32,
+	podController *podcontroller.PodController,
 ) *flowAggregator {
 	registry := ipfix.NewIPFIXRegistry()
 	registry.LoadRegistry()
@@ -196,6 +199,7 @@ func NewFlowAggregator(
 		flowAggregatorAddress,
 		k8sClient,
 		observationDomainID,
+		podController,
 	}
 	return fa
 }
@@ -377,6 +381,7 @@ func (fa *flowAggregator) sendFlowKeyRecord(key ipfixintermediate.FlowKey, recor
 	if err := fa.set.PrepareSet(ipfixentities.Data, templateID); err != nil {
 		return fmt.Errorf("error when preparing set: %v", err)
 	}
+	fa.fillK8sMetadata(key, record.Record)
 	err := fa.set.AddRecord(record.Record.GetOrderedElementList(), templateID)
 	if err != nil {
 		return fmt.Errorf("error when adding the record to the set: %v", err)
@@ -464,4 +469,66 @@ func (fa *flowAggregator) sendDataSet(dataSet ipfixentities.Set) (int, error) {
 	}
 	klog.V(4).Infof("Data set sent successfully. Bytes sent: %d", sentBytes)
 	return sentBytes, nil
+}
+
+// fillK8sMetadata fills Pod name, Pod namespace and Node name for inter-Node flows
+// that have incomplete info due to deny network policy.
+func (fa *flowAggregator) fillK8sMetadata(key ipfixintermediate.FlowKey, record ipfixentities.Record) {
+	if needsFillK8sMetadata(record) {
+		if fa.podController == nil {
+			klog.Warning("No pod controller is provided for filling k8s metadata.")
+			return
+		}
+		sourcePodInfo, exist := fa.podController.GetPodInfoByIP(key.SourceAddress)
+		if exist {
+			if sourcePodNamespace, exist := record.GetInfoElementWithValue("sourcePodNamespace"); exist {
+				sourcePodNamespace.Value = sourcePodInfo.Namespace
+			}
+			if sourcePodName, exist := record.GetInfoElementWithValue("sourcePodName"); exist {
+				sourcePodName.Value = sourcePodInfo.Name
+			}
+			if sourceNodeName, exist := record.GetInfoElementWithValue("sourceNodeName"); exist {
+				sourceNodeName.Value = sourcePodInfo.NodeName
+			}
+		}
+		destinationPodInfo, exist := fa.podController.GetPodInfoByIP(key.DestinationAddress)
+		if exist {
+			if destinationPodNamespace, exist := record.GetInfoElementWithValue("destinationPodNamespace"); exist {
+				destinationPodNamespace.Value = destinationPodInfo.Namespace
+			}
+			if destinationPodName, exist := record.GetInfoElementWithValue("destinationPodName"); exist {
+				destinationPodName.Value = destinationPodInfo.Name
+			}
+			if destinationNodeName, exist := record.GetInfoElementWithValue("destinationNodeName"); exist {
+				destinationNodeName.Value = destinationPodInfo.NodeName
+			}
+		}
+	}
+}
+
+func needsFillK8sMetadata(record ipfixentities.Record) bool {
+	flowTypeIE, exist := record.GetInfoElementWithValue("flowType")
+	if !exist {
+		klog.Warning("flowType does not exist in flow record.")
+		return false
+	}
+	if flowTypeIE.Value.(uint8) == ipfixregistry.FlowTypeInterNode {
+		var ingressRuleAction, egressRuleAction uint8
+		ie, exist := record.GetInfoElementWithValue("ingressNetworkPolicyRuleAction")
+		if !exist {
+			klog.Warning("ingressNetworkPolicyRuleAction does not exist in flow record.")
+		} else {
+			ingressRuleAction = ie.Value.(uint8)
+		}
+		ie, exist = record.GetInfoElementWithValue("egressNetworkPolicyRuleAction")
+		if !exist {
+			klog.Warning("egressNetworkPolicyRuleAction does not exist in flow record.")
+		} else {
+			egressRuleAction = ie.Value.(uint8)
+		}
+		if ingressRuleAction == ipfixregistry.NetworkPolicyRuleActionReject || egressRuleAction == ipfixregistry.NetworkPolicyRuleActionReject || egressRuleAction == ipfixregistry.NetworkPolicyRuleActionDrop {
+			return true
+		}
+	}
+	return false
 }

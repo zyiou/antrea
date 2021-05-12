@@ -369,9 +369,9 @@ func testHelper(t *testing.T, data *TestData, podAIPs, podBIPs, podCIPs, podDIPs
 
 	// InterNodeDenyConnNP tests the case, where Pods are deployed on different Nodes with an ingress and an egress deny policy rule
 	// applied on one destination Pod, one source Pod, respectively and their flow information is exported as IPFIX flow records.
-	// perftest-a -> perftest-c (Ingress deny), perftest-e (Egress deny) -> perftest-a
+	// perftest-a -> perftest-c (Ingress deny), perftest-b (Egress deny) -> perftest-e
 	t.Run("InterNodeDenyConnNP", func(t *testing.T) {
-		np1, np2 := deployDenyNetworkPolicies(t, data, "perftest-c", "perftest-e")
+		np1, np2 := deployDenyNetworkPolicies(t, data, "perftest-c", "perftest-b")
 		defer func() {
 			if np1 != nil {
 				if err = data.deleteNetworkpolicy(np1); err != nil {
@@ -386,15 +386,15 @@ func testHelper(t *testing.T, data *TestData, podAIPs, podBIPs, podCIPs, podDIPs
 		}()
 		trafficInfo := traffic{
 			srcPodName1: "perftest-a",
-			srcPodName2: "perftest-e",
+			srcPodName2: "perftest-b",
 			dstPodName1: "perftest-c",
-			dstPodName2: "perftest-a",
+			dstPodName2: "perftest-e",
 		}
 		if !isIPv6 {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podEIPs.ipv4.String(), podCIPs.ipv4.String(), podAIPs.ipv4.String()
+			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podBIPs.ipv4.String(), podCIPs.ipv4.String(), podEIPs.ipv4.String()
 			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, false)
 		} else {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podEIPs.ipv6.String(), podCIPs.ipv6.String(), podAIPs.ipv6.String()
+			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podBIPs.ipv6.String(), podCIPs.ipv6.String(), podEIPs.ipv6.String()
 			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, false)
 		}
 	})
@@ -557,10 +557,7 @@ func checkRecordsForDenyFlows(t *testing.T, data *TestData, trafficInfo traffic,
 				checkPodAndNodeData(t, record, srcPodName, controlPlaneNodeName(), dstPodName, controlPlaneNodeName())
 				checkFlowType(t, record, ipfixregistry.FlowTypeIntraNode)
 			} else {
-				// Pod info of Inter-Node flow is complete only when ingress drop rule is applied to destination Pod.
-				if strings.Contains(record, ingressDropStr) {
-					checkPodAndNodeData(t, record, srcPodName, controlPlaneNodeName(), dstPodName, workerNodeName(1))
-				}
+				checkPodAndNodeData(t, record, srcPodName, controlPlaneNodeName(), dstPodName, workerNodeName(1))
 				checkFlowType(t, record, ipfixregistry.FlowTypeInterNode)
 			}
 

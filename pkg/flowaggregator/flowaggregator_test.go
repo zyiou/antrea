@@ -20,7 +20,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
 	ipfixentities "github.com/vmware/go-ipfix/pkg/entities"
 	ipfixentitiestesting "github.com/vmware/go-ipfix/pkg/entities/testing"
 	ipfixintermediate "github.com/vmware/go-ipfix/pkg/intermediate"
@@ -61,6 +60,7 @@ func TestFlowAggregator_sendFlowKeyRecord(t *testing.T) {
 		"",
 		nil,
 		testObservationDomainID,
+		nil,
 	}
 
 	ipv4Key := ipfixintermediate.FlowKey{
@@ -133,6 +133,7 @@ func TestFlowAggregator_sendFlowKeyRecord(t *testing.T) {
 			mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, templateID).Return(nil)
 			elementList := make([]*ipfixentities.InfoElementWithValue, 0)
 			mockRecord.EXPECT().GetOrderedElementList().Return(elementList)
+			mockRecord.EXPECT().GetInfoElementWithValue(gomock.Any()).Return(nil, false)
 			mockDataSet.EXPECT().AddRecord(elementList, templateID).Return(nil)
 			mockIPFIXExpProc.EXPECT().SendSet(mockDataSet).Return(0, nil)
 			mockAggregationProcess.EXPECT().DeleteFlowKeyFromMapWithoutLock(tc.flowKey)
@@ -169,6 +170,7 @@ func TestFlowAggregator_sendTemplateSet(t *testing.T) {
 		"",
 		nil,
 		testObservationDomainID,
+		nil,
 	}
 
 	for _, isIPv6 := range []bool{false, true} {
