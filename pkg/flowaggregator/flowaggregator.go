@@ -474,61 +474,38 @@ func (fa *flowAggregator) sendDataSet(dataSet ipfixentities.Set) (int, error) {
 // fillK8sMetadata fills Pod name, Pod namespace and Node name for inter-Node flows
 // that have incomplete info due to deny network policy.
 func (fa *flowAggregator) fillK8sMetadata(key ipfixintermediate.FlowKey, record ipfixentities.Record) {
-	if needsFillK8sMetadata(record) {
-		if fa.podController == nil {
-			klog.Warning("No pod controller is provided for filling k8s metadata.")
-			return
-		}
-		sourcePodInfo, exist := fa.podController.GetPodInfoByIP(key.SourceAddress)
-		if exist {
-			if sourcePodNamespace, exist := record.GetInfoElementWithValue("sourcePodNamespace"); exist {
-				sourcePodNamespace.Value = sourcePodInfo.Namespace
-			}
-			if sourcePodName, exist := record.GetInfoElementWithValue("sourcePodName"); exist {
+	if fa.podController == nil {
+		klog.Warning("No pod controller is provided for filling k8s metadata.")
+		return
+	}
+	// fill source Pod info when sourcePodName is empty
+	if sourcePodName, exist := record.GetInfoElementWithValue("sourcePodName"); exist {
+		if sourcePodName.Value == "" {
+			sourcePodInfo, exist := fa.podController.GetPodInfoByIP(key.SourceAddress)
+			if exist {
 				sourcePodName.Value = sourcePodInfo.Name
-			}
-			if sourceNodeName, exist := record.GetInfoElementWithValue("sourceNodeName"); exist {
-				sourceNodeName.Value = sourcePodInfo.NodeName
+				if sourcePodNamespace, exist := record.GetInfoElementWithValue("sourcePodNamespace"); exist {
+					sourcePodNamespace.Value = sourcePodInfo.Namespace
+				}
+				if sourceNodeName, exist := record.GetInfoElementWithValue("sourceNodeName"); exist {
+					sourceNodeName.Value = sourcePodInfo.NodeName
+				}
 			}
 		}
-		destinationPodInfo, exist := fa.podController.GetPodInfoByIP(key.DestinationAddress)
-		if exist {
-			if destinationPodNamespace, exist := record.GetInfoElementWithValue("destinationPodNamespace"); exist {
-				destinationPodNamespace.Value = destinationPodInfo.Namespace
-			}
-			if destinationPodName, exist := record.GetInfoElementWithValue("destinationPodName"); exist {
+	}
+	// fill destination Pod info when destinationPodName is empty
+	if destinationPodName, exist := record.GetInfoElementWithValue("destinationPodName"); exist {
+		if destinationPodName.Value == "" {
+			destinationPodInfo, exist := fa.podController.GetPodInfoByIP(key.DestinationAddress)
+			if exist {
 				destinationPodName.Value = destinationPodInfo.Name
+				if destinationPodNamespace, exist := record.GetInfoElementWithValue("destinationPodNamespace"); exist {
+					destinationPodNamespace.Value = destinationPodInfo.Namespace
+				}
+				if destinationNodeName, exist := record.GetInfoElementWithValue("destinationNodeName"); exist {
+					destinationNodeName.Value = destinationPodInfo.NodeName
+				}
 			}
-			if destinationNodeName, exist := record.GetInfoElementWithValue("destinationNodeName"); exist {
-				destinationNodeName.Value = destinationPodInfo.NodeName
-			}
 		}
 	}
-}
-
-func needsFillK8sMetadata(record ipfixentities.Record) bool {
-	flowTypeIE, exist := record.GetInfoElementWithValue("flowType")
-	if !exist {
-		klog.Warning("flowType does not exist in flow record.")
-		return false
-	}
-	if flowTypeIE.Value.(uint8) == ipfixregistry.FlowTypeInterNode {
-		var ingressRuleAction, egressRuleAction uint8
-		ie, exist := record.GetInfoElementWithValue("ingressNetworkPolicyRuleAction")
-		if !exist {
-			klog.Warning("ingressNetworkPolicyRuleAction does not exist in flow record.")
-		} else {
-			ingressRuleAction = ie.Value.(uint8)
-		}
-		ie, exist = record.GetInfoElementWithValue("egressNetworkPolicyRuleAction")
-		if !exist {
-			klog.Warning("egressNetworkPolicyRuleAction does not exist in flow record.")
-		} else {
-			egressRuleAction = ie.Value.(uint8)
-		}
-		if ingressRuleAction == ipfixregistry.NetworkPolicyRuleActionReject || egressRuleAction == ipfixregistry.NetworkPolicyRuleActionReject || egressRuleAction == ipfixregistry.NetworkPolicyRuleActionDrop {
-			return true
-		}
-	}
-	return false
 }

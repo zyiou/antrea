@@ -37,7 +37,8 @@ type Connection struct {
 	ID        uint32
 	Timeout   uint32
 	StartTime time.Time
-	// For invalid and closed connections: StopTime is the time when connection was updated last.
+	// For invalid and closed connections or deny connections: StopTime is the time when connection
+	// was updated last.
 	// For established connections: StopTime is latest time when it was polled.
 	StopTime time.Time
 	// IsPresent flag helps in cleaning up connections when they are not in conntrack table anymore.
@@ -68,9 +69,11 @@ type Connection struct {
 	EgressNetworkPolicyRuleAction  uint8
 	TCPState                       string
 	// fields specific to deny connections
-	Bytes    uint64
-	IsIPv6   bool
-	TimeSeen time.Time
+	// DeltaBytes and DeltaPackets are octetDeltaCount and packetDeltaCount over each active
+	// flow timeout duration.
+	DeltaBytes, DeltaPackets uint64
+	TotalBytes, TotalPackets uint64
+	LastExportTime           time.Time
 }
 
 type FlowRecord struct {

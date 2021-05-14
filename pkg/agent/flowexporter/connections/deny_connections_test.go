@@ -52,17 +52,19 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 	}
 	// flow-1 for testing adding
 	testFlow1 := flowexporter.Connection{
-		TimeSeen: refTime.Add(-(time.Second * 20)),
-		FlowKey:  tuple,
-		IsIPv6:   false,
-		Bytes:    uint64(60),
+		StopTime:     refTime.Add(-(time.Second * 20)),
+		FlowKey:      tuple,
+		DeltaBytes:   uint64(60),
+		DeltaPackets: uint64(1),
+		TotalBytes:   uint64(60),
+		TotalPackets: uint64(1),
 	}
 	// flow-2 for testing updating
 	testFlow2 := flowexporter.Connection{
-		TimeSeen: refTime.Add(-(time.Second * 10)),
-		FlowKey:  tuple,
-		IsIPv6:   false,
-		Bytes:    uint64(60),
+		StopTime:     refTime.Add(-(time.Second * 10)),
+		FlowKey:      tuple,
+		DeltaBytes:   uint64(60),
+		DeltaPackets: uint64(1),
 	}
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
 	mockProxier := proxytest.NewMockProxier(ctrl)
@@ -83,7 +85,11 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 	checkDenyConnectionMetrics(t, len(denyConnStore.connections))
 
 	denyConnStore.AddOrUpdateConn(&testFlow2)
-	expConn.Bytes = uint64(120)
+	expConn.TotalBytes = uint64(120)
+	expConn.DeltaBytes = uint64(120)
+	expConn.TotalPackets = uint64(2)
+	expConn.DeltaPackets = uint64(2)
+	expConn.StopTime = refTime.Add(-(time.Second * 10))
 	actualConn, ok = denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow1))
 	assert.Equal(t, ok, true, "deny connection should be there in deny connection store")
 	assert.Equal(t, expConn, *actualConn, "deny connections should be equal")
@@ -100,10 +106,9 @@ func TestDenyConnectionStore_DeleteConnWithoutLock(t *testing.T) {
 	refTime := time.Now()
 	tuple1, tuple2 := makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
 	conn := &flowexporter.Connection{
-		TimeSeen: refTime.Add(-(time.Second * 20)),
-		FlowKey:  tuple1,
-		IsIPv6:   false,
-		Bytes:    uint64(60),
+		StopTime:   refTime.Add(-(time.Second * 20)),
+		FlowKey:    tuple1,
+		DeltaBytes: uint64(60),
 	}
 	connKey := flowexporter.NewConnectionKey(conn)
 	connStore.connections[connKey] = conn

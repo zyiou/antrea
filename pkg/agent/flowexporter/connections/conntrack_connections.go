@@ -1,4 +1,4 @@
-// Copyright 2020 Antrea Authors
+// Copyright 2021 Antrea Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,19 +38,14 @@ var serviceProtocolMap = map[uint8]corev1.Protocol{
 	132: corev1.ProtocolSCTP,
 }
 
-type ConntrackConnectionStore interface {
-	// SetExportDone sets DoneExport field of connection to true given the connection key.
-	SetExportDone(connKey flowexporter.ConnectionKey) error
-}
-
-type conntrackConnectionStore struct {
+type ConntrackConnectionStore struct {
 	flowRecords          *flowrecords.FlowRecords
 	connDumper           ConnTrackDumper
 	v4Enabled            bool
 	v6Enabled            bool
 	networkPolicyQuerier querier.AgentNetworkPolicyInfoQuerier
 	pollInterval         time.Duration
-	*connectionStore
+	connectionStore
 }
 
 func NewConntrackConnectionStore(
@@ -62,8 +57,8 @@ func NewConntrackConnectionStore(
 	proxier proxy.Proxier,
 	npQuerier querier.AgentNetworkPolicyInfoQuerier,
 	pollInterval time.Duration,
-) *conntrackConnectionStore {
-	return &conntrackConnectionStore{
+) *ConntrackConnectionStore {
+	return &ConntrackConnectionStore{
 		flowRecords:          flowRecords,
 		connDumper:           connTrackDumper,
 		v4Enabled:            v4Enabled,
@@ -75,7 +70,7 @@ func NewConntrackConnectionStore(
 }
 
 // Run enables the periodical polling of conntrack connections at a given flowPollInterval.
-func (cs *conntrackConnectionStore) Run(stopCh <-chan struct{}) {
+func (cs *ConntrackConnectionStore) Run(stopCh <-chan struct{}) {
 	klog.Infof("Starting conntrack polling")
 
 	pollTicker := time.NewTicker(cs.pollInterval)
@@ -103,7 +98,7 @@ func (cs *conntrackConnectionStore) Run(stopCh <-chan struct{}) {
 // address family, as a slice. In dual-stack clusters, the slice will contain 2 values (number of IPv4 connections first,
 // then number of IPv6 connections).
 // TODO: As optimization, only poll invalid/closed connections during every poll, and poll the established connections right before the export.
-func (cs *conntrackConnectionStore) Poll() ([]int, error) {
+func (cs *ConntrackConnectionStore) Poll() ([]int, error) {
 	klog.V(2).Infof("Polling conntrack")
 	// Reset IsPresent flag for all connections in connection map before dumping flows in conntrack module.
 	// if the connection does not exist in conntrack table and has been exported, we will delete it from connection map.
@@ -154,7 +149,7 @@ func (cs *conntrackConnectionStore) Poll() ([]int, error) {
 	return connsLens, nil
 }
 
-func (cs *conntrackConnectionStore) addNetworkPolicyMetadata(conn *flowexporter.Connection) {
+func (cs *ConntrackConnectionStore) addNetworkPolicyMetadata(conn *flowexporter.Connection) {
 	// Retrieve NetworkPolicy Name and Namespace by using the ingress and egress
 	// IDs stored in the connection label.
 	if len(conn.Labels) != 0 {
@@ -190,7 +185,7 @@ func (cs *conntrackConnectionStore) addNetworkPolicyMetadata(conn *flowexporter.
 
 // AddOrUpdateConn updates the connection if it is already present, i.e., update timestamp, counters etc.,
 // or adds a new connection with the resolved K8s metadata.
-func (cs *conntrackConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection) {
+func (cs *ConntrackConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection) {
 	connKey := flowexporter.NewConnectionKey(conn)
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
@@ -212,7 +207,6 @@ func (cs *conntrackConnectionStore) AddOrUpdateConn(conn *flowexporter.Connectio
 		existingConn.TCPState = conn.TCPState
 		klog.V(4).Infof("Antrea flow updated: %v", existingConn)
 	} else {
-
 		cs.fillPodInfo(conn)
 		if conn.Mark == openflow.ServiceCTMark {
 			clusterIP := conn.TupleOrig.DestinationAddress.String()
@@ -236,7 +230,7 @@ func (cs *conntrackConnectionStore) AddOrUpdateConn(conn *flowexporter.Connectio
 
 // DeleteConnWithoutLock deletes the connection from the connection map given
 // the connection key without grabbing the lock. Caller is expected to grab lock.
-func (cs *conntrackConnectionStore) DeleteConnWithoutLock(connKey flowexporter.ConnectionKey) error {
+func (cs *ConntrackConnectionStore) DeleteConnWithoutLock(connKey flowexporter.ConnectionKey) error {
 	_, exists := cs.connections[connKey]
 	if !exists {
 		return fmt.Errorf("connection with key %v doesn't exist in map", connKey)
@@ -247,7 +241,7 @@ func (cs *conntrackConnectionStore) DeleteConnWithoutLock(connKey flowexporter.C
 }
 
 // SetExportDone sets DoneExport field of conntrack connection to true given the connection key.
-func (cs *conntrackConnectionStore) SetExportDone(connKey flowexporter.ConnectionKey) error {
+func (cs *ConntrackConnectionStore) SetExportDone(connKey flowexporter.ConnectionKey) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 

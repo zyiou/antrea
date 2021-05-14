@@ -335,22 +335,10 @@ func (c *Controller) rejectRequest(pktIn *ofctrl.PacketIn) error {
 }
 
 func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
-
 	packet, err := binding.ParsePacketIn(pktIn)
 	if err != nil {
 		return fmt.Errorf("error in parsing packetin: %v", err)
 	}
-
-	err = c.addDenyConn(pktIn, packet)
-	if err != nil {
-		return fmt.Errorf("error when adding deny connection: %v", err)
-	}
-
-	return nil
-}
-
-func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet) error {
-	denyConn := flowexporter.Connection{}
 
 	// Get 5-tuple information
 	flowKey := flowexporter.Tuple{
@@ -361,17 +349,20 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 	if packet.IsIPv6 {
 		flowKey.SourceAddress = packet.SourceIP.To16()
 		flowKey.DestinationAddress = packet.DestinationIP.To16()
-		denyConn.IsIPv6 = true
 	} else {
 		flowKey.SourceAddress = packet.SourceIP.To4()
 		flowKey.DestinationAddress = packet.DestinationIP.To4()
 	}
+
+	// Generate deny connection and add to deny connection store
+	denyConn := flowexporter.Connection{}
 	denyConn.FlowKey = flowKey
 
 	// No need to obtain connection info again if it already exists in denyConnectionStore.
-	if _, exist := c.denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&denyConn)); exist {
-		denyConn.Bytes = uint64(packet.IPLength)
-		c.denyConnStore.AddOrUpdateConn(&denyConn)
+	if conn, exist := c.denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&denyConn)); exist {
+		conn.DeltaBytes = uint64(packet.IPLength)
+		conn.StopTime = time.Now()
+		c.denyConnStore.AddOrUpdateConn(conn)
 		return nil
 	}
 
@@ -416,8 +407,14 @@ func (c *Controller) addDenyConn(pktIn *ofctrl.PacketIn, packet *binding.Packet)
 			}
 		}
 	}
-	denyConn.TimeSeen = time.Now()
-	denyConn.Bytes = uint64(packet.IPLength)
+
+	denyConn.StartTime = time.Now()
+	denyConn.StopTime = time.Now()
+	denyConn.LastExportTime = time.Now()
+	denyConn.DeltaBytes = uint64(packet.IPLength)
+	denyConn.TotalBytes = uint64(packet.IPLength)
+	denyConn.DeltaPackets = uint64(1)
+	denyConn.TotalPackets = uint64(1)
 	c.denyConnStore.AddOrUpdateConn(&denyConn)
 	return nil
 }

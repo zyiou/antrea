@@ -133,7 +133,6 @@ func TestFlowAggregator_sendFlowKeyRecord(t *testing.T) {
 			mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, templateID).Return(nil)
 			elementList := make([]*ipfixentities.InfoElementWithValue, 0)
 			mockRecord.EXPECT().GetOrderedElementList().Return(elementList)
-			mockRecord.EXPECT().GetInfoElementWithValue(gomock.Any()).Return(nil, false)
 			mockDataSet.EXPECT().AddRecord(elementList, templateID).Return(nil)
 			mockIPFIXExpProc.EXPECT().SendSet(mockDataSet).Return(0, nil)
 			mockAggregationProcess.EXPECT().DeleteFlowKeyFromMapWithoutLock(tc.flowKey)

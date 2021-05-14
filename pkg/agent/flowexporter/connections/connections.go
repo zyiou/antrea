@@ -36,8 +36,8 @@ type connectionStore struct {
 func NewConnectionStore(
 	ifaceStore interfacestore.InterfaceStore,
 	proxier proxy.Proxier,
-) *connectionStore {
-	return &connectionStore{
+) connectionStore {
+	return connectionStore{
 		connections:   make(map[flowexporter.ConnectionKey]*flowexporter.Connection),
 		ifaceStore:    ifaceStore,
 		antreaProxier: proxier,

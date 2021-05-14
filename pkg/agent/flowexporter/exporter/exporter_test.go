@@ -284,7 +284,7 @@ func getConnection(isIPv6 bool, isPresent bool, statusFlag uint32, protoID uint8
 	return conn
 }
 
-func getDenyConnection(isIPv6 bool) *flowexporter.Connection {
+func getDenyConnection(isIPv6 bool, isActive bool) *flowexporter.Connection {
 	var tuple, _ flowexporter.Tuple
 	if !isIPv6 {
 		tuple, _ = makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
@@ -293,11 +293,15 @@ func getDenyConnection(isIPv6 bool) *flowexporter.Connection {
 		dstIP := net.ParseIP("2001:0:3238:dfe1:63::fefc")
 		tuple, _ = makeTuple(&srcIP, &dstIP, 6, 65280, 255)
 	}
-	return &flowexporter.Connection{
-		FlowKey:  tuple,
-		IsIPv6:   isIPv6,
-		TimeSeen: time.Now().Add(-testIdleFlowTimeout),
+	conn := &flowexporter.Connection{
+		FlowKey:        tuple,
+		LastExportTime: time.Now().Add(-testIdleFlowTimeout),
 	}
+	if isActive {
+		conn.LastExportTime = time.Now().Add(-testActiveFlowTimeout)
+		conn.DeltaPackets = uint64(1)
+	}
+	return conn
 }
 
 func getFlowRecord(conn *flowexporter.Connection, isIPv6 bool, isActive bool) flowexporter.FlowRecord {
@@ -358,10 +362,10 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 
 	mockIPFIXExpProc := ipfixtest.NewMockIPFIXExportingProcess(ctrl)
 	mockDataSet := ipfixentitiestesting.NewMockSet(ctrl)
-	mockConntrackConnStore := connectionstest.NewMockConntrackConnectionStore(ctrl)
 	flowExp.process = mockIPFIXExpProc
 	flowExp.ipfixSet = mockDataSet
-	flowExp.conntrackConnStore = mockConntrackConnStore
+	mockConnDumper := connectionstest.NewMockConnTrackDumper(ctrl)
+	flowExp.conntrackConnStore = connections.NewConntrackConnectionStore(mockConnDumper, flowrecords.NewFlowRecords(), nil, !isIPv6, isIPv6, nil, nil, 1)
 
 	tests := []struct {
 		name               string
@@ -372,6 +376,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 		tcpState           string
 		statusFlag         uint32
 		protoID            uint8
+		isDenyConnActive   bool
 	}{
 		{
 			"active flow record",
@@ -382,6 +387,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			"SYN_SENT",
 			0x4,
 			6,
+			true,
 		},
 		{
 			"idle flow record",
@@ -392,6 +398,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			"ESTABLISHED",
 			302,
 			6,
+			false,
 		},
 		{
 			"idle flow record that is still inactive",
@@ -402,6 +409,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			"",
 			0x204,
 			17,
+			false,
 		},
 		{
 			"idle flow record becomes active",
@@ -412,6 +420,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			"SYN_SENT",
 			302,
 			6,
+			true,
 		},
 		{
 			"idle flow record for deleted connection",
@@ -422,18 +431,20 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			"TIME_WAIT",
 			0x204,
 			6,
+			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := getConnection(isIPv6, tt.isConnPresent, tt.statusFlag, tt.protoID, tt.tcpState)
 			connKey := flowexporter.NewConnectionKey(conn)
+			flowExp.conntrackConnStore.AddOrUpdateConn(conn)
 			flowExp.flowRecords = flowrecords.NewFlowRecords()
 			err := flowExp.flowRecords.AddOrUpdateFlowRecord(connKey, conn)
 			assert.NoError(t, err)
 			flowExp.numDataSetsSent = 0
 
-			denyConn := getDenyConnection(isIPv6)
+			denyConn := getDenyConnection(isIPv6, tt.isDenyConnActive)
 			flowExp.denyConnStore = connections.NewDenyConnectionStore(nil, nil)
 			flowExp.denyConnStore.AddOrUpdateConn(denyConn)
 			assert.Equal(t, getNumOfConnections(flowExp.denyConnStore), 1)
@@ -452,9 +463,6 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			count := 1
 			if tt.isRecordActive {
 				count += 1
-				if flowexporter.IsConnectionDying(conn) {
-					mockConntrackConnStore.EXPECT().SetExportDone(connKey)
-				}
 			}
 			if !isIPv6 {
 				mockDataSet.EXPECT().PrepareSet(ipfixentities.Data, flowExp.templateIDv4).Times(count).Return(nil)
@@ -469,11 +477,19 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 			err = flowExp.sendFlowRecords()
 			assert.NoError(t, err)
 			assert.Equalf(t, uint64(count), flowExp.numDataSetsSent, "%v data sets should have been sent.", count)
-			assert.Equal(t, getNumOfConnections(flowExp.denyConnStore), 0)
-
+			if tt.isDenyConnActive {
+				connection, exist := flowExp.denyConnStore.GetConnByKey(connKey)
+				assert.True(t, exist)
+				assert.Equal(t, uint64(0), connection.DeltaPackets)
+				assert.Equal(t, uint64(0), connection.DeltaBytes)
+			} else {
+				assert.Equal(t, getNumOfConnections(flowExp.denyConnStore), 0)
+			}
 			if tt.isRecordActive && flowexporter.IsConnectionDying(conn) {
 				_, recPresent := flowExp.flowRecords.GetFlowRecordFromMap(&connKey)
 				assert.Falsef(t, recPresent, "record should not be in the map")
+				connection, _ := flowExp.conntrackConnStore.GetConnByKey(connKey)
+				assert.True(t, connection.DoneExport)
 			}
 		})
 	}

@@ -16,6 +16,7 @@ package connections
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/klog"
 
@@ -27,7 +28,7 @@ import (
 )
 
 type DenyConnectionStore struct {
-	*connectionStore
+	connectionStore
 }
 
 func NewDenyConnectionStore(ifaceStore interfacestore.InterfaceStore,
@@ -45,7 +46,11 @@ func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection) {
 	defer ds.mutex.Unlock()
 	existingConn, exist := ds.connections[connKey]
 	if exist {
-		existingConn.Bytes += conn.Bytes
+		existingConn.DeltaBytes += conn.DeltaBytes
+		existingConn.TotalBytes += conn.DeltaBytes
+		existingConn.DeltaPackets += 1
+		existingConn.TotalPackets += 1
+		existingConn.StopTime = conn.StopTime
 		klog.V(2).Infof("Deny connection with flowKey %v has been updated.", connKey)
 		return
 	}
@@ -55,6 +60,20 @@ func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection) {
 	ds.fillServiceInfo(conn, serviceStr)
 	metrics.TotalDenyConnections.Inc()
 	ds.connections[connKey] = conn
+}
+
+// ResetConnStatsWithoutLock resets DeltaBytes and DeltaPackets of connection
+// after exporting without grabbing the lock. Caller is expected to grab lock.
+func (ds *DenyConnectionStore) ResetConnStatsWithoutLock(conn *flowexporter.Connection) {
+	connKey := flowexporter.NewConnectionKey(conn)
+	conn, exist := ds.connections[connKey]
+	if !exist {
+		klog.Warningf("Connection with key %s does not exist in deny connection store.", connKey)
+	} else {
+		conn.DeltaBytes = 0
+		conn.DeltaPackets = 0
+		conn.LastExportTime = time.Now()
+	}
 }
 
 // DeleteConnWithoutLock deletes the connection from the connection map given
