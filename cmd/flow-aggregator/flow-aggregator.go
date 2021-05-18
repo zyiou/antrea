@@ -28,7 +28,6 @@ import (
 
 	"antrea.io/antrea/pkg/clusteridentity"
 	aggregator "antrea.io/antrea/pkg/flowaggregator"
-	"antrea.io/antrea/pkg/flowaggregator/podcontroller"
 	"antrea.io/antrea/pkg/signals"
 )
 
@@ -84,7 +83,7 @@ func run(o *Options) error {
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(k8sClient, informerDefaultResync)
-	podController := podcontroller.NewPodController(informerFactory)
+	podInformer := informerFactory.Core().V1().Pods()
 
 	var observationDomainID uint32
 	if o.config.ObservationDomainID != nil {
@@ -102,7 +101,7 @@ func run(o *Options) error {
 		o.flowAggregatorAddress,
 		k8sClient,
 		observationDomainID,
-		podController,
+		podInformer,
 	)
 	err = flowAggregator.InitCollectingProcess()
 	if err != nil {
@@ -115,8 +114,6 @@ func run(o *Options) error {
 	go flowAggregator.Run(stopCh)
 
 	informerFactory.Start(stopCh)
-
-	go podController.Run(stopCh)
 
 	<-stopCh
 	klog.Infof("Stopping flow aggregator")

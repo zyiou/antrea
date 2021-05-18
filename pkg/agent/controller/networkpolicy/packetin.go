@@ -360,9 +360,7 @@ func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
 
 	// No need to obtain connection info again if it already exists in denyConnectionStore.
 	if conn, exist := c.denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&denyConn)); exist {
-		conn.DeltaBytes = uint64(packet.IPLength)
-		conn.StopTime = time.Now()
-		c.denyConnStore.AddOrUpdateConn(conn)
+		c.denyConnStore.AddOrUpdateConn(conn, time.Now(), uint64(packet.IPLength))
 		return nil
 	}
 
@@ -408,13 +406,6 @@ func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
 		}
 	}
 
-	denyConn.StartTime = time.Now()
-	denyConn.StopTime = time.Now()
-	denyConn.LastExportTime = time.Now()
-	denyConn.DeltaBytes = uint64(packet.IPLength)
-	denyConn.TotalBytes = uint64(packet.IPLength)
-	denyConn.DeltaPackets = uint64(1)
-	denyConn.TotalPackets = uint64(1)
-	c.denyConnStore.AddOrUpdateConn(&denyConn)
+	c.denyConnStore.AddOrUpdateConn(&denyConn, time.Now(), uint64(packet.IPLength))
 	return nil
 }

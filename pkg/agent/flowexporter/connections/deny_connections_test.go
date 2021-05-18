@@ -39,7 +39,7 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	metrics.InitializeConnectionMetrics()
-	// Create two flows for testing adding and updating of same connection.
+	// Create flow for testing adding and updating of same connection.
 	refTime := time.Now()
 	tuple, _ := makeTuple(&net.IP{1, 2, 3, 4}, &net.IP{4, 3, 2, 1}, 6, 65280, 255)
 	servicePortName := k8sproxy.ServicePortName{
@@ -50,21 +50,16 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 		Port:     "255",
 		Protocol: v1.ProtocolTCP,
 	}
-	// flow-1 for testing adding
-	testFlow1 := flowexporter.Connection{
-		StopTime:     refTime.Add(-(time.Second * 20)),
-		FlowKey:      tuple,
-		DeltaBytes:   uint64(60),
-		DeltaPackets: uint64(1),
-		TotalBytes:   uint64(60),
-		TotalPackets: uint64(1),
-	}
-	// flow-2 for testing updating
-	testFlow2 := flowexporter.Connection{
-		StopTime:     refTime.Add(-(time.Second * 10)),
-		FlowKey:      tuple,
-		DeltaBytes:   uint64(60),
-		DeltaPackets: uint64(1),
+	// flow for testing adding and updating
+	testFlow := flowexporter.Connection{
+		StopTime:       refTime.Add(-(time.Second * 20)),
+		StartTime:      refTime.Add(-(time.Second * 20)),
+		LastExportTime: refTime.Add(-(time.Second * 20)),
+		FlowKey:        tuple,
+		DeltaBytes:     uint64(60),
+		DeltaPackets:   uint64(1),
+		TotalBytes:     uint64(60),
+		TotalPackets:   uint64(1),
 	}
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
 	mockProxier := proxytest.NewMockProxier(ctrl)
@@ -76,21 +71,21 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 
 	denyConnStore := NewDenyConnectionStore(mockIfaceStore, mockProxier)
 
-	denyConnStore.AddOrUpdateConn(&testFlow1)
-	expConn := testFlow1
+	denyConnStore.AddOrUpdateConn(&testFlow, refTime.Add(-(time.Second * 20)), uint64(60))
+	expConn := testFlow
 	expConn.DestinationServicePortName = servicePortName.String()
-	actualConn, ok := denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow1))
+	actualConn, ok := denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow))
 	assert.Equal(t, ok, true, "deny connection should be there in deny connection store")
 	assert.Equal(t, expConn, *actualConn, "deny connections should be equal")
 	checkDenyConnectionMetrics(t, len(denyConnStore.connections))
 
-	denyConnStore.AddOrUpdateConn(&testFlow2)
+	denyConnStore.AddOrUpdateConn(&testFlow, refTime.Add(-(time.Second * 10)), uint64(60))
 	expConn.TotalBytes = uint64(120)
 	expConn.DeltaBytes = uint64(120)
 	expConn.TotalPackets = uint64(2)
 	expConn.DeltaPackets = uint64(2)
 	expConn.StopTime = refTime.Add(-(time.Second * 10))
-	actualConn, ok = denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow1))
+	actualConn, ok = denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow))
 	assert.Equal(t, ok, true, "deny connection should be there in deny connection store")
 	assert.Equal(t, expConn, *actualConn, "deny connections should be equal")
 	checkDenyConnectionMetrics(t, len(denyConnStore.connections))

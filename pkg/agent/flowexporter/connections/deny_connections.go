@@ -40,26 +40,33 @@ func NewDenyConnectionStore(ifaceStore interfacestore.InterfaceStore,
 
 // AddOrUpdateConn updates the connection if it is already present, i.e., update timestamp, counters etc.,
 // or adds a new connection with the resolved K8s metadata.
-func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection) {
+func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection, timeSeen time.Time, bytes uint64) {
 	connKey := flowexporter.NewConnectionKey(conn)
 	ds.mutex.Lock()
 	defer ds.mutex.Unlock()
-	existingConn, exist := ds.connections[connKey]
-	if exist {
-		existingConn.DeltaBytes += conn.DeltaBytes
-		existingConn.TotalBytes += conn.DeltaBytes
-		existingConn.DeltaPackets += 1
-		existingConn.TotalPackets += 1
-		existingConn.StopTime = conn.StopTime
+	if _, exist := ds.connections[connKey]; exist {
+		conn.DeltaBytes += bytes
+		conn.TotalBytes += bytes
+		conn.DeltaPackets += 1
+		conn.TotalPackets += 1
+		conn.StopTime = timeSeen
 		klog.V(2).Infof("Deny connection with flowKey %v has been updated.", connKey)
 		return
+	} else {
+		conn.StartTime = timeSeen
+		conn.StopTime = timeSeen
+		conn.LastExportTime = timeSeen
+		conn.DeltaBytes = bytes
+		conn.TotalBytes = bytes
+		conn.DeltaPackets = uint64(1)
+		conn.TotalPackets = uint64(1)
+		ds.fillPodInfo(conn)
+		protocolStr := ip.IPProtocolNumberToString(conn.FlowKey.Protocol, "UnknownProtocol")
+		serviceStr := fmt.Sprintf("%s:%d/%s", conn.FlowKey.DestinationAddress, conn.FlowKey.DestinationPort, protocolStr)
+		ds.fillServiceInfo(conn, serviceStr)
+		metrics.TotalDenyConnections.Inc()
+		ds.connections[connKey] = conn
 	}
-	ds.fillPodInfo(conn)
-	protocolStr := ip.IPProtocolNumberToString(conn.FlowKey.Protocol, "UnknownProtocol")
-	serviceStr := fmt.Sprintf("%s:%d/%s", conn.FlowKey.DestinationAddress, conn.FlowKey.DestinationPort, protocolStr)
-	ds.fillServiceInfo(conn, serviceStr)
-	metrics.TotalDenyConnections.Inc()
-	ds.connections[connKey] = conn
 }
 
 // ResetConnStatsWithoutLock resets DeltaBytes and DeltaPackets of connection

@@ -446,7 +446,7 @@ func runSendFlowRecordTests(t *testing.T, flowExp *flowExporter, isIPv6 bool) {
 
 			denyConn := getDenyConnection(isIPv6, tt.isDenyConnActive)
 			flowExp.denyConnStore = connections.NewDenyConnectionStore(nil, nil)
-			flowExp.denyConnStore.AddOrUpdateConn(denyConn)
+			flowExp.denyConnStore.AddOrUpdateConn(denyConn, denyConn.LastExportTime, denyConn.DeltaBytes)
 			assert.Equal(t, getNumOfConnections(flowExp.denyConnStore), 1)
 
 			// Get the flow record and update it.
