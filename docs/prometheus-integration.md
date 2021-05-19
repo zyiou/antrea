@@ -153,7 +153,7 @@ in the conntrack table. This metric gets updated at an interval specified
 by flowPollInterval, a configuration parameter for the Agent.
 - **antrea_agent_deny_connection_count:** Number of deny connections detected
 by Flow Exporter deny connections tracking. This metric gets updated when a flow
-is rejected/dropped by network policy. 
+is rejected/dropped by network policy.
 - **antrea_agent_egress_networkpolicy_rule_count:** Number of egress
 NetworkPolicy rules on local Node which are managed by the Antrea Agent.
 - **antrea_agent_ingress_networkpolicy_rule_count:** Number of ingress
