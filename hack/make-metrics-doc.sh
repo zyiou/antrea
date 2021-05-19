@@ -118,9 +118,9 @@ formatted_metrics=$(format_metrics "$sorted_metrics")
 
 if [ "$metrics_doc" == "" ]; then
         fmt -w 80 -s <<< $formatted_metrics
-        echo $formatted_metrics
+        echo fmt -w 80 -s <<< $formatted_metrics
 else
         sed -i '/^Below is a list of metrics, provided by the components and by 3rd parties.$/,$d' $metrics_doc
         fmt -w 80 -s <<< $formatted_metrics >> $metrics_doc
-        echo $formatted_metrics
+        echo fmt -w 80 -s <<< $formatted_metrics
 fi
