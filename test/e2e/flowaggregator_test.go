@@ -531,7 +531,7 @@ func checkRecordsForDenyFlows(t *testing.T, data *TestData, trafficInfo traffic,
 		}
 		return strings.Contains(collectorOutput, trafficInfo.srcIP1) && strings.Contains(collectorOutput, trafficInfo.srcIP2), nil
 	})
-	require.NoErrorf(t, err, collectorOutput)
+	require.NoErrorf(t, err, "%v, %v, %v",collectorOutput, trafficInfo.srcIP1, trafficInfo.srcIP2)
 
 	rc, collectorOutput, _, err = provider.RunCommandOnNode(controlPlaneNodeName(), fmt.Sprintf("kubectl logs --since=%v ipfix-collector -n antrea-test", time.Since(timeStart).String()))
 	if err != nil || rc != 0 {
