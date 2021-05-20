@@ -35,6 +35,8 @@ METRICS_DOC="$THIS_DIR/../../docs/prometheus-integration.md"
 
 cp -v $METRICS_DOC $METRICS_TMP_DOC
 $MAKE_CMD $METRICS_TMP_DOC
+echo $METRICS_DOC
+echo $METRICS_TMP_DOC
 cmp -s $METRICS_DOC $METRICS_TMP_DOC
 result=$?
 if [ $result -ne 0 ]; then
