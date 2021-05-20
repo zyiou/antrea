@@ -122,6 +122,7 @@ func (c *Controller) HandlePacketIn(pktIn *ofctrl.PacketIn) error {
 		}
 	}
 	if customReasons&openflow.CustomReasonDeny == openflow.CustomReasonDeny {
+		klog.Info("test")
 		if err := c.storeDenyConnection(pktIn); err != nil {
 			return err
 		}
@@ -378,8 +379,10 @@ func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
 
 	// For K8s network policy drop action, we cannot get name/namespace.
 	if tableID == openflow.IngressDefaultTable {
+		klog.Info(disposition)
 		denyConn.IngressNetworkPolicyRuleAction = flowexporter.RuleActionToUint8(disposition)
 	} else if tableID == openflow.EgressDefaultTable {
+		klog.Info(disposition)
 		denyConn.EgressNetworkPolicyRuleAction = flowexporter.RuleActionToUint8(disposition)
 	} else { // Get name and namespace for Antrea Network Policy or Antrea Cluster Network Policy
 		// Set match to corresponding ingress/egress reg according to disposition
@@ -391,6 +394,7 @@ func (c *Controller) storeDenyConnection(pktIn *ofctrl.PacketIn) error {
 		policy := c.GetNetworkPolicyByRuleFlowID(ruleID)
 
 		if policy == nil {
+			klog.Info("test2")
 			// Default drop by k8s network policy
 			klog.V(2).Infof("Cannot find NetworkPolicy that has ruleID %v", ruleID)
 		} else {

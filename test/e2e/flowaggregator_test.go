@@ -522,16 +522,18 @@ func checkRecordsForDenyFlows(t *testing.T, data *TestData, trafficInfo traffic,
 	_, _, err = data.runCommandFromPod(testNamespace, trafficInfo.srcPodName2, "", []string{"timeout", "2", "bash", "-c", cmdStr2})
 	assert.Error(t, err)
 
+	var collectorOutput string
+	var rc int
 	err = wait.Poll(250*time.Millisecond, collectorCheckTimeout, func() (bool, error) {
-		rc, collectorOutput, _, err := provider.RunCommandOnNode(controlPlaneNodeName(), fmt.Sprintf("kubectl logs --since=%v ipfix-collector -n antrea-test", time.Since(timeStart).String()))
+		rc, collectorOutput, _, err = provider.RunCommandOnNode(controlPlaneNodeName(), fmt.Sprintf("kubectl logs --since=%v ipfix-collector -n antrea-test", time.Since(timeStart).String()))
 		if err != nil || rc != 0 {
 			return false, err
 		}
 		return strings.Contains(collectorOutput, trafficInfo.srcIP1) && strings.Contains(collectorOutput, trafficInfo.srcIP2), nil
 	})
-	require.NoErrorf(t, err, "IPFIX collector did not receive the expected records and timed out with error: %v", err)
+	require.NoErrorf(t, err, collectorOutput)
 
-	rc, collectorOutput, _, err := provider.RunCommandOnNode(controlPlaneNodeName(), fmt.Sprintf("kubectl logs --since=%v ipfix-collector -n antrea-test", time.Since(timeStart).String()))
+	rc, collectorOutput, _, err = provider.RunCommandOnNode(controlPlaneNodeName(), fmt.Sprintf("kubectl logs --since=%v ipfix-collector -n antrea-test", time.Since(timeStart).String()))
 	if err != nil || rc != 0 {
 		t.Errorf("Error when getting logs %v, rc: %v", err, rc)
 	}
