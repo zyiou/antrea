@@ -46,9 +46,9 @@ func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection, ti
 	defer ds.mutex.Unlock()
 	if _, exist := ds.connections[connKey]; exist {
 		conn.DeltaBytes += bytes
-		conn.TotalBytes += bytes
+		conn.OriginalBytes += bytes
 		conn.DeltaPackets += 1
-		conn.TotalPackets += 1
+		conn.OriginalPackets += 1
 		conn.StopTime = timeSeen
 		klog.V(2).Infof("Deny connection with flowKey %v has been updated.", connKey)
 		return
@@ -57,9 +57,9 @@ func (ds *DenyConnectionStore) AddOrUpdateConn(conn *flowexporter.Connection, ti
 		conn.StopTime = timeSeen
 		conn.LastExportTime = timeSeen
 		conn.DeltaBytes = bytes
-		conn.TotalBytes = bytes
+		conn.OriginalBytes = bytes
 		conn.DeltaPackets = uint64(1)
-		conn.TotalPackets = uint64(1)
+		conn.OriginalPackets = uint64(1)
 		ds.fillPodInfo(conn)
 		protocolStr := ip.IPProtocolNumberToString(conn.FlowKey.Protocol, "UnknownProtocol")
 		serviceStr := fmt.Sprintf("%s:%d/%s", conn.FlowKey.DestinationAddress, conn.FlowKey.DestinationPort, protocolStr)

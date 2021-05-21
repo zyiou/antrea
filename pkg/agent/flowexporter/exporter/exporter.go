@@ -599,9 +599,9 @@ func (exp *flowExporter) addDenyConnToSet(conn *flowexporter.Connection, flowEnd
 		case "protocolIdentifier":
 			ie.Value = conn.FlowKey.Protocol
 		case "packetTotalCount":
-			ie.Value = conn.TotalPackets
+			ie.Value = conn.OriginalPackets
 		case "octetTotalCount":
-			ie.Value = conn.TotalBytes
+			ie.Value = conn.OriginalBytes
 		case "packetDeltaCount":
 			ie.Value = conn.DeltaPackets
 		case "octetDeltaCount":

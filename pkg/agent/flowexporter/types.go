@@ -72,7 +72,6 @@ type Connection struct {
 	// DeltaBytes and DeltaPackets are octetDeltaCount and packetDeltaCount over each active
 	// flow timeout duration.
 	DeltaBytes, DeltaPackets uint64
-	TotalBytes, TotalPackets uint64
 	LastExportTime           time.Time
 }
 

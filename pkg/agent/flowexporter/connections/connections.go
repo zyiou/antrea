@@ -68,7 +68,7 @@ func (cs *connectionStore) ForAllConnectionsDo(callback flowexporter.ConnectionM
 
 func (cs *connectionStore) fillPodInfo(conn *flowexporter.Connection) {
 	if cs.ifaceStore == nil {
-		klog.Warning("Interface store is not available to retrieve local Pods information.")
+		klog.V(4).Info("Interface store is not available to retrieve local Pods information.")
 		return
 	}
 	// sourceIP/destinationIP are mapped only to local pods and not remote pods.

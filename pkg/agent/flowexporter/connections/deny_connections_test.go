@@ -52,14 +52,14 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 	}
 	// flow for testing adding and updating
 	testFlow := flowexporter.Connection{
-		StopTime:       refTime.Add(-(time.Second * 20)),
-		StartTime:      refTime.Add(-(time.Second * 20)),
-		LastExportTime: refTime.Add(-(time.Second * 20)),
-		FlowKey:        tuple,
-		DeltaBytes:     uint64(60),
-		DeltaPackets:   uint64(1),
-		TotalBytes:     uint64(60),
-		TotalPackets:   uint64(1),
+		StopTime:        refTime.Add(-(time.Second * 20)),
+		StartTime:       refTime.Add(-(time.Second * 20)),
+		LastExportTime:  refTime.Add(-(time.Second * 20)),
+		FlowKey:         tuple,
+		DeltaBytes:      uint64(60),
+		DeltaPackets:    uint64(1),
+		OriginalBytes:   uint64(60),
+		OriginalPackets: uint64(1),
 	}
 	mockIfaceStore := interfacestoretest.NewMockInterfaceStore(ctrl)
 	mockProxier := proxytest.NewMockProxier(ctrl)
@@ -80,9 +80,9 @@ func TestDenyConnectionStore_AddOrUpdateConn(t *testing.T) {
 	checkDenyConnectionMetrics(t, len(denyConnStore.connections))
 
 	denyConnStore.AddOrUpdateConn(&testFlow, refTime.Add(-(time.Second * 10)), uint64(60))
-	expConn.TotalBytes = uint64(120)
+	expConn.OriginalBytes = uint64(120)
 	expConn.DeltaBytes = uint64(120)
-	expConn.TotalPackets = uint64(2)
+	expConn.OriginalPackets = uint64(2)
 	expConn.DeltaPackets = uint64(2)
 	expConn.StopTime = refTime.Add(-(time.Second * 10))
 	actualConn, ok = denyConnStore.GetConnByKey(flowexporter.NewConnectionKey(&testFlow))
@@ -125,10 +125,10 @@ func TestDenyConnectionStore_DeleteConnWithoutLock(t *testing.T) {
 
 func checkDenyConnectionMetrics(t *testing.T, numConns int) {
 	expectedDenyConnectionCount := `
-	# HELP antrea_agent_deny_connection_count [ALPHA] Number of deny connections detected by Flow Exporter deny connections tracking. This metric gets updated when a flow is rejected/dropped by network policy.
-	# TYPE antrea_agent_deny_connection_count gauge
+	# HELP antrea_agent_denied_connection_count [ALPHA] Number of denied connections detected by Flow Exporter deny connections tracking. This metric gets updated when a flow is rejected/dropped by network policy.
+	# TYPE antrea_agent_denied_connection_count gauge
 	`
-	expectedDenyConnectionCount = expectedDenyConnectionCount + fmt.Sprintf("antrea_agent_deny_connection_count %d\n", numConns)
-	err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, strings.NewReader(expectedDenyConnectionCount), "antrea_agent_deny_connection_count")
+	expectedDenyConnectionCount = expectedDenyConnectionCount + fmt.Sprintf("antrea_agent_denied_connection_count %d\n", numConns)
+	err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, strings.NewReader(expectedDenyConnectionCount), "antrea_agent_denied_connection_count")
 	assert.NoError(t, err)
 }
