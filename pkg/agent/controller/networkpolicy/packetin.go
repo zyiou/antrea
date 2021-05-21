@@ -102,6 +102,7 @@ func (c *Controller) HandlePacketIn(pktIn *ofctrl.PacketIn) error {
 		return errors.New("empty packetin for Antrea Policy")
 	}
 
+	klog.Info("Yiou3")
 	matches := pktIn.GetMatches()
 	// Get custom reasons in this packet-in.
 	match := getMatchRegField(matches, uint32(openflow.CustomReasonMarkReg))
