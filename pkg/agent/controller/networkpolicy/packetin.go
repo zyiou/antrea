@@ -122,6 +122,7 @@ func (c *Controller) HandlePacketIn(pktIn *ofctrl.PacketIn) error {
 		}
 	}
 	if customReasons&openflow.CustomReasonDeny == openflow.CustomReasonDeny {
+		klog.Info("Yiou2")
 		if err := c.storeDenyConnection(pktIn); err != nil {
 			return err
 		}

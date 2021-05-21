@@ -157,94 +157,94 @@ func testHelper(t *testing.T, data *TestData, podAIPs, podBIPs, podCIPs, podDIPs
 	// Wait for the Service to be realized.
 	time.Sleep(3 * time.Second)
 
-	// IntraNodeFlows tests the case, where Pods are deployed on same Node and their flow information is exported as IPFIX flow records.
-	t.Run("IntraNodeFlows", func(t *testing.T) {
-		np1, np2 := deployNetworkPolicies(t, data, "perftest-a", "perftest-b")
-		defer func() {
-			if np1 != nil {
-				if err = data.deleteNetworkpolicy(np1); err != nil {
-					t.Errorf("Error when deleting network policy: %v", err)
-				}
-			}
-			if np2 != nil {
-				if err = data.deleteNetworkpolicy(np2); err != nil {
-					t.Errorf("Error when deleting network policy: %v", err)
-				}
-			}
-		}()
-		// TODO: Skipping bandwidth check for Intra-Node flows as it is flaky.
-		if !isIPv6 {
-			checkRecordsForFlows(t, data, podAIPs.ipv4.String(), podBIPs.ipv4.String(), isIPv6, true, false, true, false)
-		} else {
-			checkRecordsForFlows(t, data, podAIPs.ipv6.String(), podBIPs.ipv6.String(), isIPv6, true, false, true, false)
-		}
-	})
-
-	// IntraNodeDenyConnIngressANP tests the case, where Pods are deployed on same Node with an Antrea ingress deny policy rule
-	// applied on destination Pod (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
-	// perftest-a -> perftest-b (Ingress reject), perftest-a -> perftest-d (Ingress drop)
-	t.Run("IntraNodeDenyConnIngressANP", func(t *testing.T) {
-		skipIfAntreaPolicyDisabled(t, data)
-		anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-b", "perftest-d", true)
-		defer func() {
-			if anp1 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-			if anp2 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-		}()
-		trafficInfo := traffic{
-			srcPodName1: "perftest-a",
-			srcPodName2: "perftest-a",
-			dstPodName1: "perftest-b",
-			dstPodName2: "perftest-d",
-		}
-		if !isIPv6 {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podBIPs.ipv4.String(), podDIPs.ipv4.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
-		} else {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podBIPs.ipv6.String(), podDIPs.ipv6.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
-		}
-	})
-
-	// IntraNodeDenyConnEgressANP tests the case, where Pods are deployed on same Node with an Antrea egress deny policy rule
-	// applied on source Pods (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
-	// perftest-a (Egress reject) -> perftest-b , perftest-a (Egress drop) -> perftest-d
-	t.Run("IntraNodeDenyConnEgressANP", func(t *testing.T) {
-		skipIfAntreaPolicyDisabled(t, data)
-		anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-b", "perftest-d", false)
-		defer func() {
-			if anp1 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-			if anp2 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-		}()
-		trafficInfo := traffic{
-			srcPodName1: "perftest-a",
-			srcPodName2: "perftest-a",
-			dstPodName1: "perftest-b",
-			dstPodName2: "perftest-d",
-		}
-		if !isIPv6 {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podBIPs.ipv4.String(), podDIPs.ipv4.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
-		} else {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podBIPs.ipv6.String(), podDIPs.ipv6.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
-		}
-	})
+	//// IntraNodeFlows tests the case, where Pods are deployed on same Node and their flow information is exported as IPFIX flow records.
+	//t.Run("IntraNodeFlows", func(t *testing.T) {
+	//	np1, np2 := deployNetworkPolicies(t, data, "perftest-a", "perftest-b")
+	//	defer func() {
+	//		if np1 != nil {
+	//			if err = data.deleteNetworkpolicy(np1); err != nil {
+	//				t.Errorf("Error when deleting network policy: %v", err)
+	//			}
+	//		}
+	//		if np2 != nil {
+	//			if err = data.deleteNetworkpolicy(np2); err != nil {
+	//				t.Errorf("Error when deleting network policy: %v", err)
+	//			}
+	//		}
+	//	}()
+	//	// TODO: Skipping bandwidth check for Intra-Node flows as it is flaky.
+	//	if !isIPv6 {
+	//		checkRecordsForFlows(t, data, podAIPs.ipv4.String(), podBIPs.ipv4.String(), isIPv6, true, false, true, false)
+	//	} else {
+	//		checkRecordsForFlows(t, data, podAIPs.ipv6.String(), podBIPs.ipv6.String(), isIPv6, true, false, true, false)
+	//	}
+	//})
+	//
+	//// IntraNodeDenyConnIngressANP tests the case, where Pods are deployed on same Node with an Antrea ingress deny policy rule
+	//// applied on destination Pod (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
+	//// perftest-a -> perftest-b (Ingress reject), perftest-a -> perftest-d (Ingress drop)
+	//t.Run("IntraNodeDenyConnIngressANP", func(t *testing.T) {
+	//	skipIfAntreaPolicyDisabled(t, data)
+	//	anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-b", "perftest-d", true)
+	//	defer func() {
+	//		if anp1 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//		if anp2 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//	}()
+	//	trafficInfo := traffic{
+	//		srcPodName1: "perftest-a",
+	//		srcPodName2: "perftest-a",
+	//		dstPodName1: "perftest-b",
+	//		dstPodName2: "perftest-d",
+	//	}
+	//	if !isIPv6 {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podBIPs.ipv4.String(), podDIPs.ipv4.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
+	//	} else {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podBIPs.ipv6.String(), podDIPs.ipv6.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
+	//	}
+	//})
+	//
+	//// IntraNodeDenyConnEgressANP tests the case, where Pods are deployed on same Node with an Antrea egress deny policy rule
+	//// applied on source Pods (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
+	//// perftest-a (Egress reject) -> perftest-b , perftest-a (Egress drop) -> perftest-d
+	//t.Run("IntraNodeDenyConnEgressANP", func(t *testing.T) {
+	//	skipIfAntreaPolicyDisabled(t, data)
+	//	anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-b", "perftest-d", false)
+	//	defer func() {
+	//		if anp1 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//		if anp2 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//	}()
+	//	trafficInfo := traffic{
+	//		srcPodName1: "perftest-a",
+	//		srcPodName2: "perftest-a",
+	//		dstPodName1: "perftest-b",
+	//		dstPodName2: "perftest-d",
+	//	}
+	//	if !isIPv6 {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podBIPs.ipv4.String(), podDIPs.ipv4.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
+	//	} else {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podBIPs.ipv6.String(), podDIPs.ipv6.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, true)
+	//	}
+	//})
 
 	// IntraNodeDenyConnNP tests the case, where Pods are deployed on same Node with an ingress and an egress deny policy rule
 	// applied on one destination Pod, one source Pod, respectively and their flow information is exported as IPFIX flow records.
@@ -277,95 +277,95 @@ func testHelper(t *testing.T, data *TestData, podAIPs, podBIPs, podCIPs, podDIPs
 			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, true, false)
 		}
 	})
-
-	// InterNodeFlows tests the case, where Pods are deployed on different Nodes
-	// and their flow information is exported as IPFIX flow records.
-	t.Run("InterNodeFlows", func(t *testing.T) {
-		np1, np2 := deployNetworkPolicies(t, data, "perftest-a", "perftest-c")
-		defer func() {
-			if np1 != nil {
-				if err = data.deleteNetworkpolicy(np1); err != nil {
-					t.Errorf("Error when deleting network policy: %v", err)
-				}
-			}
-			if np2 != nil {
-				if err = data.deleteNetworkpolicy(np2); err != nil {
-					t.Errorf("Error when deleting network policy: %v", err)
-				}
-			}
-		}()
-		if !isIPv6 {
-			checkRecordsForFlows(t, data, podAIPs.ipv4.String(), podCIPs.ipv4.String(), isIPv6, false, false, true, true)
-		} else {
-			checkRecordsForFlows(t, data, podAIPs.ipv6.String(), podCIPs.ipv6.String(), isIPv6, false, false, true, true)
-		}
-	})
-
-	// InterNodeDenyConnIngressANP tests the case, where Pods are deployed on different Nodes with an Antrea ingress deny policy rule
-	// applied on destination Pod (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
-	// perftest-a -> perftest-c (Ingress reject), perftest-a -> perftest-e (Ingress drop)
-	t.Run("InterNodeDenyConnIngressANP", func(t *testing.T) {
-		skipIfAntreaPolicyDisabled(t, data)
-		anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-c", "perftest-e", true)
-		defer func() {
-			if anp1 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-			if anp2 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-		}()
-		trafficInfo := traffic{
-			srcPodName1: "perftest-a",
-			srcPodName2: "perftest-a",
-			dstPodName1: "perftest-c",
-			dstPodName2: "perftest-e",
-		}
-		if !isIPv6 {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podCIPs.ipv4.String(), podEIPs.ipv4.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
-		} else {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podCIPs.ipv6.String(), podEIPs.ipv6.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
-		}
-	})
-
-	// InterNodeDenyConnEgressANP tests the case, where Pods are deployed on different Nodes with an Antrea egress deny policy rule
-	// applied on source Pod (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
-	// perftest-a (Egress reject) -> perftest-c, perftest-a (Egress drop)-> perftest-e
-	t.Run("InterNodeDenyConnEgressANP", func(t *testing.T) {
-		skipIfAntreaPolicyDisabled(t, data)
-		anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-c", "perftest-e", false)
-		defer func() {
-			if anp1 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-			if anp2 != nil {
-				if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
-					t.Errorf("Error when deleting Antrea Network Policy: %v", err)
-				}
-			}
-		}()
-		trafficInfo := traffic{
-			srcPodName1: "perftest-a",
-			srcPodName2: "perftest-a",
-			dstPodName1: "perftest-c",
-			dstPodName2: "perftest-e",
-		}
-		if !isIPv6 {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podCIPs.ipv4.String(), podEIPs.ipv4.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
-		} else {
-			trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podCIPs.ipv6.String(), podEIPs.ipv6.String()
-			checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
-		}
-	})
+	//
+	//// InterNodeFlows tests the case, where Pods are deployed on different Nodes
+	//// and their flow information is exported as IPFIX flow records.
+	//t.Run("InterNodeFlows", func(t *testing.T) {
+	//	np1, np2 := deployNetworkPolicies(t, data, "perftest-a", "perftest-c")
+	//	defer func() {
+	//		if np1 != nil {
+	//			if err = data.deleteNetworkpolicy(np1); err != nil {
+	//				t.Errorf("Error when deleting network policy: %v", err)
+	//			}
+	//		}
+	//		if np2 != nil {
+	//			if err = data.deleteNetworkpolicy(np2); err != nil {
+	//				t.Errorf("Error when deleting network policy: %v", err)
+	//			}
+	//		}
+	//	}()
+	//	if !isIPv6 {
+	//		checkRecordsForFlows(t, data, podAIPs.ipv4.String(), podCIPs.ipv4.String(), isIPv6, false, false, true, true)
+	//	} else {
+	//		checkRecordsForFlows(t, data, podAIPs.ipv6.String(), podCIPs.ipv6.String(), isIPv6, false, false, true, true)
+	//	}
+	//})
+	//
+	//// InterNodeDenyConnIngressANP tests the case, where Pods are deployed on different Nodes with an Antrea ingress deny policy rule
+	//// applied on destination Pod (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
+	//// perftest-a -> perftest-c (Ingress reject), perftest-a -> perftest-e (Ingress drop)
+	//t.Run("InterNodeDenyConnIngressANP", func(t *testing.T) {
+	//	skipIfAntreaPolicyDisabled(t, data)
+	//	anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-c", "perftest-e", true)
+	//	defer func() {
+	//		if anp1 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//		if anp2 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//	}()
+	//	trafficInfo := traffic{
+	//		srcPodName1: "perftest-a",
+	//		srcPodName2: "perftest-a",
+	//		dstPodName1: "perftest-c",
+	//		dstPodName2: "perftest-e",
+	//	}
+	//	if !isIPv6 {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podCIPs.ipv4.String(), podEIPs.ipv4.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
+	//	} else {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podCIPs.ipv6.String(), podEIPs.ipv6.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
+	//	}
+	//})
+	//
+	//// InterNodeDenyConnEgressANP tests the case, where Pods are deployed on different Nodes with an Antrea egress deny policy rule
+	//// applied on source Pod (one reject rule, one drop rule) and their flow information is exported as IPFIX flow records.
+	//// perftest-a (Egress reject) -> perftest-c, perftest-a (Egress drop)-> perftest-e
+	//t.Run("InterNodeDenyConnEgressANP", func(t *testing.T) {
+	//	skipIfAntreaPolicyDisabled(t, data)
+	//	anp1, anp2 := deployDenyAntreaNetworkPolicies(t, data, "perftest-a", "perftest-c", "perftest-e", false)
+	//	defer func() {
+	//		if anp1 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp1); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//		if anp2 != nil {
+	//			if err = data.deleteAntreaNetworkpolicy(anp2); err != nil {
+	//				t.Errorf("Error when deleting Antrea Network Policy: %v", err)
+	//			}
+	//		}
+	//	}()
+	//	trafficInfo := traffic{
+	//		srcPodName1: "perftest-a",
+	//		srcPodName2: "perftest-a",
+	//		dstPodName1: "perftest-c",
+	//		dstPodName2: "perftest-e",
+	//	}
+	//	if !isIPv6 {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv4.String(), podAIPs.ipv4.String(), podCIPs.ipv4.String(), podEIPs.ipv4.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
+	//	} else {
+	//		trafficInfo.srcIP1, trafficInfo.srcIP2, trafficInfo.dstIP1, trafficInfo.dstIP2 = podAIPs.ipv6.String(), podAIPs.ipv6.String(), podCIPs.ipv6.String(), podEIPs.ipv6.String()
+	//		checkRecordsForDenyFlows(t, data, trafficInfo, isIPv6, false, true)
+	//	}
+	//})
 
 	// InterNodeDenyConnNP tests the case, where Pods are deployed on different Nodes with an ingress and an egress deny policy rule
 	// applied on one destination Pod, one source Pod, respectively and their flow information is exported as IPFIX flow records.

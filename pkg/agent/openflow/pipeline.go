@@ -1708,6 +1708,7 @@ func (c *client) conjunctiveMatchFlow(tableID binding.TableIDType, matchKey *typ
 // defaultDropFlow generates the flow to drop packets if the match condition is matched.
 func (c *client) defaultDropFlow(tableID binding.TableIDType, matchKey *types.MatchKey, matchValue interface{}) binding.Flow {
 	fb := c.pipeline[tableID].BuildFlow(priorityNormal)
+	klog.Info("Yiou")
 	if c.enableDenyTracking {
 		return c.addFlowMatch(fb, matchKey, matchValue).
 			Action().Drop().

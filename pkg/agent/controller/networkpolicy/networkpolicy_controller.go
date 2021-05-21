@@ -128,13 +128,15 @@ func NewNetworkPolicyController(antreaClientGetter agent.AntreaClientProvider,
 	// Wait until appliedToGroupWatcher, addressGroupWatcher and networkPolicyWatcher to receive bookmark event.
 	c.fullSyncGroup.Add(3)
 
-	if c.ofClient != nil && loggingEnabled {
+	if c.ofClient != nil && (loggingEnabled || denyConnStore != nil){
 		// Register packetInHandler
 		c.ofClient.RegisterPacketInHandler(uint8(openflow.PacketInReasonNP), "networkpolicy", c)
 		// Initiate logger for Antrea Policy audit logging
-		err := initLogger()
-		if err != nil {
-			return nil, err
+		if loggingEnabled {
+			err := initLogger()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
