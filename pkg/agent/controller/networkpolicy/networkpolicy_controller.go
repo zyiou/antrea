@@ -129,6 +129,7 @@ func NewNetworkPolicyController(antreaClientGetter agent.AntreaClientProvider,
 	c.fullSyncGroup.Add(3)
 
 	if c.ofClient != nil && (loggingEnabled || denyConnStore != nil){
+		klog.Info(loggingEnabled)
 		klog.Info("Registered")
 		// Register packetInHandler
 		c.ofClient.RegisterPacketInHandler(uint8(openflow.PacketInReasonNP), "networkpolicy", c)
