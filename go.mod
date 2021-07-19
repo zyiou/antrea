@@ -74,4 +74,5 @@ replace (
 	// antrea/plugins/octant/go.mod also has this replacement since replace statement in dependencies
 	// were ignored. We need to change antrea/plugins/octant/go.mod if there is any change here.
 	github.com/contiv/ofnet => github.com/wenyingd/ofnet v0.0.0-20210526054554-3e71e19fd0cf
+	github.com/vmware/go-ipfix => github.com/zyiou/go-ipfix v0.1.2-0.20210720225237-0ad948683f1b
 )
